@@ -1,3 +1,6 @@
+## 0.6.1 (Novembro 01, 2016)
+  - Remove -h so git can handle it.
+
 ## 0.6.0 (Novembro 01, 2016)
   - Include git-activity.
 
