@@ -75,8 +75,9 @@ while [[ "$#" -gt 0 ]]; do
       INTERACTIVE=true
       ;;
     -p|--push)
-      PUSH_BRANCH=${value}
-      test -z $value || shift
+       PUSH=true
+  #    PUSH_BRANCH=${value}
+  #    test -z $value || shift
       ;;
     -r|--release)
       RELEASE=true
@@ -145,7 +146,7 @@ case "$INCREMENT" in
     V_MINOR=$((V_MINOR + 1)); V_PATCH=0;
     ;;
   patch )
-    V_PATCH=$((V_PATCH+1));
+    V_PATCH=$((V_PATCH + 1));
     ;;
 esac
 SUGGESTED_VERSION="${PARAM_VERSION:-$V_MAJOR.$V_MINOR.$V_PATCH}"
@@ -192,7 +193,7 @@ fi
 #handling the version number changes
 
 if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
-  echo -e "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
+  echo -en "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
   read recursively
   case "$recursively" in
     [Nn]* )
@@ -203,13 +204,13 @@ if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
       ;;
   esac
 fi
-set -x
 if [[ ! -z "$RECURSIVE" ]]; then
-  git grep -l "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g"
+  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
+  git add $VERSION_FILE
 fi
-set +x
+
 echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
 if [[ ! -z `git show-ref --tags | grep "refs/tags/v$BASE_STRING"` ]]; then
   git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
@@ -225,15 +226,20 @@ if [[ ! -z "$INTERACTIVE" ]]; then
   git_editor $CHANGELOG_FILE
 fi
 
-if [[ ! -z "$COMMIT" ]]; then
-  git add $CHANGELOG_FILE $VERSION_FILE
-  git commit $GPG_SIGN -m "Bump version to ${SUGGESTED_VERSION}."
+git add $CHANGELOG_FILE
+
+if [[ ! -z "$PUSH" || ! -z "$COMMIT" ]]; then
+  git commit -m "Bump version to ${SUGGESTED_VERSION}."
   git tag -a -m "Tag version ${SUGGESTED_VERSION}." "v${SUGGESTED_VERSION}"
 fi
-
+if [[ ! -z "$PUSH" ]]; then
+  git checkout $TARGET_BRANCH
+  if [[ ! -z $NEW_BRANCH ]]; then git merge --no-ff $NEW_BRANCH; fi
+  git push origin $TARGET_BRANCH
+  git push origin --tags
+fi
 
 #echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
 
 
-#git tag -a -m "Tag version ${INPUT_STRING}." "v$INPUT_STRING"
 #git push origin --tags
