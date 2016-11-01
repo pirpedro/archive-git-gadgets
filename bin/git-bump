@@ -23,7 +23,7 @@ USAGE=`cat << EOF
   OPTIONS
 
          --hotfix       Inform that a new hotfix branch will
-                        be created. Increment by 'patch'if
+                        be created. Increment by 'patch' if
                         no parameter was passed.
 
     -i | --interactive  Use interactive mode.
@@ -36,8 +36,6 @@ USAGE=`cat << EOF
     -R | --recursive    Recursive find/replace git project by version
                         pattern.
 
-    -S | --sign         Sign commits.
-
     -v | --version      Specify your own version number for the bump.
 
 EOF`
@@ -46,7 +44,7 @@ source "$(git --exec-path)/git-sh-setup"
 
 NOW="$(date +'%B %d, %Y')"
 COLOR_RED="\033[1;31m"
-COLOR_GREEN="\033[0;32m"
+COLOR_GREEN="\033[1;32m"
 COLOR_YELLOW="\033[1;33m"
 COLOR_BLUE="\033[1;34m"
 COLOR_PURPLE="\033[1;35m"
@@ -85,9 +83,6 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     -R|--recursive)
       RECURSIVE=true
-      ;;
-    -S)
-      GPG_SIGN="-S"
       ;;
     -v|--version)
       if test -z $value; then
@@ -156,7 +151,7 @@ esac
 SUGGESTED_VERSION="${PARAM_VERSION:-$V_MAJOR.$V_MINOR.$V_PATCH}"
 
 if [[ ! -z "$INTERACTIVE" ]]; then
-  echo -ne "${QUESTION_FLAG} ${CYAN}Enter a version number [${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}]: "
+  echo -ne "${QUESTION_FLAG} Enter a version number [${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}]: "
   read INPUT_STRING
   if [ "$INPUT_STRING" != "" ]; then
       SUGGESTED_VERSION = $INPUT_STRING
@@ -195,7 +190,26 @@ if [[ ! -z "$NEW_BRANCH" ]]; then
 fi
 
 #handling the version number changes
-echo $SUGGESTED_VERSION > $VERSION_FILE
+
+if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
+  echo -e "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
+  read recursively
+  case "$recursively" in
+    [Nn]* )
+      #do nothing
+      ;;
+    *)
+      RECURSIVE=true
+      ;;
+  esac
+fi
+set -x
+if [[ ! -z "$RECURSIVE" ]]; then
+  git grep -l "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g"
+else
+  echo $SUGGESTED_VERSION > $VERSION_FILE
+fi
+set +x
 echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
 if [[ ! -z `git show-ref --tags | grep "refs/tags/v$BASE_STRING"` ]]; then
   git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
@@ -207,7 +221,7 @@ echo "" >> $TEMP_FILE
 cat $CHANGELOG_FILE >> $TEMP_FILE
 mv $TEMP_FILE $CHANGELOG_FILE
 if [[ ! -z "$INTERACTIVE" ]]; then
-  echo -e "${QUESTION_FLAG} ${CYAN}Now you can make adjustments to ${WHITE}CHANGELOG.md${CYAN}. Then press enter to continue."
+  echo -e "${QUESTION_FLAG} Now you can make adjustments to ${COLOR_WHITE}CHANGELOG.md${COLOR_GREEN}. Then press enter to continue."
   git_editor $CHANGELOG_FILE
 fi
 
