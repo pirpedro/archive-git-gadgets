@@ -13,17 +13,33 @@
 #git scritp variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
-[OPTIONS] [BRANCH]
+[OPTIONS] [INCREMENT] [BRANCH]
+
+  INCREMENT
+    Optional parameter that change the increment in version.
+    The default version format is 'major.minor.patch' with
+    minor increments if the parameter was not mentioned.
 
   OPTIONS
 
-    -i | --interactive
-    -p | --push
-    -r | --release
-    -R
-    -S
+         --hotfix       Inform that a new hotfix branch will
+                        be created. Increment by 'patch'if
+                        no parameter was passed.
 
-    --increment
+    -i | --interactive  Use interactive mode.
+
+    -p | --push         Push to remote the current changes.
+
+    -r | --release      Inform that a new release branch will
+                        be created.
+
+    -R | --recursive    Recursive find/replace git project by version
+                        pattern.
+
+    -S | --sign         Sign commits.
+
+    -v | --version      Specify your own version number for the bump.
+
 EOF`
 
 source "$(git --exec-path)/git-sh-setup"
@@ -99,15 +115,8 @@ if [[ "$1" != -* ]]; then
   esac
 fi
 if [[ "$1" != -* ]]; then TARGET_BRANCH="$1"; fi
-TARGET_BRANCH=${TARGET_BRANCH-`git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2`}
+TARGET_BRANCH=${TARGET_BRANCH:-`git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2`}
 
-#echo "Hotfix: ${HOTFIX}"
-#echo "Interactive: ${INTERACTIVE}, Increment: ${INCREMENT}"
-#echo "PUSH_BRANCH: ${PUSH_BRANCH}, Release: ${RELEASE}"
-#echo "RECURSIVE: ${RECURSIVE}, Sign: ${GPG_SIGN}"
-#echo "Increment: ${INCREMENT}"
-#echo "BRANCH: ${TARGET_BRANCH}"
-#exit
 LATEST_HASH=`git log --pretty=format:'%h' -n 1`
 
 if [[ ! -f $VERSION_FILE ]]; then
@@ -188,7 +197,7 @@ if [[ "$INTERACTIVE" == true && "$HOTFIX" == true || "$RELEASE" = true ]]; then
 fi
 
 if [[ ! -z "$NEW_BRANCH" ]]; then
-  git checkout -b $NEW_BRANCH
+  git checkout -b $NEW_BRANCH $TARGET_BRANCH
 fi
 
 #handling the version number changes
