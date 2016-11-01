@@ -1,3 +1,6 @@
+## 0.5.0 (Novembro 01, 2016)
+  - Automatically add changed files to git version control.
+
 ## 0.4.1 (Novembro 01, 2016)
   - Minor change in grep behavior.
 
