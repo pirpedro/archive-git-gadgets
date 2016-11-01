@@ -1,3 +1,6 @@
+## 0.6.0 (Novembro 01, 2016)
+  - Include git-activity.
+
 ## 0.5.0 (Novembro 01, 2016)
   - Include README.md empty file.
   - Automatically add changed files to git version control.
