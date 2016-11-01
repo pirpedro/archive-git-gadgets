@@ -1,3 +1,6 @@
+## 0.4.1 (Novembro 01, 2016)
+  - Minor change in grep behavior.
+
 ## 0.4.0 (Novembro 01, 2016)
   - Include push behavior.
 
