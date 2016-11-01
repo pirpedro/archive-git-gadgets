@@ -58,14 +58,6 @@ QUESTION_FLAG="${COLOR_GREEN}?"
 WARNING_FLAG="${COLOR_YELLOW}!"
 NOTICE_FLAG="${COLOR_CYAN}❯"
 
-INTERACTIVE=false
-INCREMENT=""
-PUSH_BRANCH=""
-RELEASE=false
-HOTFIX=false
-RECURSIVE=false
-PARAM_VERSION=""
-
 VERSION_FILE=$(git rev-parse --show-toplevel)/.version
 CHANGELOG_FILE=$(git rev-parse --show-toplevel)/CHANGELOG.md
 TEMP_FILE=$(git rev-parse --show-toplevel)/tmpfile
@@ -75,6 +67,9 @@ while [[ "$#" -gt 0 ]]; do
   key="$1"; shift;
   if [[ ! -z $1 && "$1" != -* ]]; then value="$1"; fi
   case $key in
+    -c|--commit)
+      COMMIT=true
+      ;;
     --hotfix)
       HOTFIX=true
       ;;
@@ -120,7 +115,7 @@ TARGET_BRANCH=${TARGET_BRANCH:-`git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2
 LATEST_HASH=`git log --pretty=format:'%h' -n 1`
 
 if [[ ! -f $VERSION_FILE ]]; then
-  if [[ "$INTERACTIVE" == true ]]; then
+  if [[ ! -z "$INTERACTIVE" ]]; then
     echo -e "${WARNING_FLAG} Could not find a .version file."
     echo -ne "${QUESTION_FLAG} Do you want to create a version file and start from scratch? [${COLOR_WHITE}y${COLOR_GREEN}]: "
     read RESPONSE
@@ -142,10 +137,10 @@ BASE_LIST=(`echo $BASE_STRING | tr '.' ' '`)
 V_MAJOR=${BASE_LIST[0]}
 V_MINOR=${BASE_LIST[1]}
 V_PATCH=${BASE_LIST[2]}
-test "$INTERACTIVE" == false || echo -e "${NOTICE_FLAG} Current version: ${COLOR_WHITE}$BASE_STRING"
-test "$INTERACTIVE" == false || echo -e "${NOTICE_FLAG} Latest commit hash: ${COLOR_WHITE}$LATEST_HASH"
+test -z "$INTERACTIVE" || echo -e "${NOTICE_FLAG} Current version: ${COLOR_WHITE}$BASE_STRING"
+test -z "$INTERACTIVE" || echo -e "${NOTICE_FLAG} Latest commit hash: ${COLOR_WHITE}$LATEST_HASH"
 
-if [[ "$HOTFIX" == true && -z $INCREMENT ]]; then INCREMENT=patch; fi
+if [[ ! -z "$HOTFIX" && -z $INCREMENT ]]; then INCREMENT=patch; fi
 INCREMENT=${INCREMENT:-minor}
 case "$INCREMENT" in
   major )
@@ -160,7 +155,7 @@ case "$INCREMENT" in
 esac
 SUGGESTED_VERSION="${PARAM_VERSION:-$V_MAJOR.$V_MINOR.$V_PATCH}"
 
-if [[ "$INTERACTIVE" == true ]]; then
+if [[ ! -z "$INTERACTIVE" ]]; then
   echo -ne "${QUESTION_FLAG} ${CYAN}Enter a version number [${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}]: "
   read INPUT_STRING
   if [ "$INPUT_STRING" != "" ]; then
@@ -169,8 +164,7 @@ if [[ "$INTERACTIVE" == true ]]; then
 fi
 echo -e "${NOTICE_FLAG} Will set new version to be ${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}."
 
-
-if [[ "$INTERACTIVE" == true && "$HOTFIX" == false && "$RELEASE" == false ]]; then
+if [[ ! -z "$INTERACTIVE" && -z "$HOTFIX" && -z "$RELEASE" ]]; then
   echo -ne "${QUESTION_FLAG} Create new branch? [[${COLOR_WHITE}n${COLOR_GREEN}]o|[${COLOR_WHITE}h${COLOR_GREEN}]otfix|[${COLOR_WHITE}r${COLOR_GREEN}]elease]: "
   read new_branch
   case "$new_branch" in
@@ -182,13 +176,13 @@ if [[ "$INTERACTIVE" == true && "$HOTFIX" == false && "$RELEASE" == false ]]; th
       ;;
   esac
 fi
-if [[ "$HOTFIX" == true ]]; then
+if [[ ! -z "$HOTFIX" ]]; then
   NEW_BRANCH=hotfix/$SUGGESTED_VERSION
-elif [[ "$RELEASE" == true ]]; then
+elif [[ ! -z "$RELEASE" ]]; then
   NEW_BRANCH=release/$SUGGESTED_VERSION
 fi
 
-if [[ "$INTERACTIVE" == true && "$HOTFIX" == true || "$RELEASE" = true ]]; then
+if [[ ! -z "$INTERACTIVE" && (! -z "$HOTFIX"  || ! -z "$RELEASE") ]]; then
   echo -ne "${QUESTION_FLAG} Enter new branch name [${COLOR_WHITE}$NEW_BRANCH${COLOR_GREEN}]: "
   read new_branch_name
   if [[ "$new_branch_name" != "" ]]; then
@@ -212,13 +206,20 @@ echo "" >> $TEMP_FILE
 echo "" >> $TEMP_FILE
 cat $CHANGELOG_FILE >> $TEMP_FILE
 mv $TEMP_FILE $CHANGELOG_FILE
-if [[ "$INTERACTIVE" == true ]]; then
+if [[ ! -z "$INTERACTIVE" ]]; then
   echo -e "${QUESTION_FLAG} ${CYAN}Now you can make adjustments to ${WHITE}CHANGELOG.md${CYAN}. Then press enter to continue."
-  read
-  echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
+  git_editor $CHANGELOG_FILE
 fi
 
-#git add CHANGELOG.md VERSION
-#git commit -m "Bump version to ${INPUT_STRING}."
+if [[ ! -z "$COMMIT" ]]; then
+  git add $CHANGELOG_FILE $VERSION_FILE
+  git commit $GPG_SIGN -m "Bump version to ${SUGGESTED_VERSION}."
+  git tag -a -m "Tag version ${SUGGESTED_VERSION}." "v${SUGGESTED_VERSION}"
+fi
+
+
+#echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
+
+
 #git tag -a -m "Tag version ${INPUT_STRING}." "v$INPUT_STRING"
 #git push origin --tags
