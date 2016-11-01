@@ -193,7 +193,7 @@ fi
 #handling the version number changes
 
 if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
-  echo -e "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
+  echo -en "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
   read recursively
   case "$recursively" in
     [Nn]* )
@@ -204,13 +204,14 @@ if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
       ;;
   esac
 fi
-
+set -x
 if [[ ! -z "$RECURSIVE" ]]; then
-  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g"
+  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g" | xargs git add
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
+  git add $VERSION_FILE
 fi
-
+set +x
 echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
 if [[ ! -z `git show-ref --tags | grep "refs/tags/v$BASE_STRING"` ]]; then
   git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
@@ -226,12 +227,12 @@ if [[ ! -z "$INTERACTIVE" ]]; then
   git_editor $CHANGELOG_FILE
 fi
 
+git add $CHANGELOG_FILE
+
 if [[ ! -z "$PUSH" || ! -z "$COMMIT" ]]; then
-  git add $CHANGELOG_FILE $VERSION_FILE
   git commit -m "Bump version to ${SUGGESTED_VERSION}."
   git tag -a -m "Tag version ${SUGGESTED_VERSION}." "v${SUGGESTED_VERSION}"
 fi
-
 if [[ ! -z "$PUSH" ]]; then
   git checkout $TARGET_BRANCH
   if [[ ! -z $NEW_BRANCH ]]; then git merge --no-ff $NEW_BRANCH; fi

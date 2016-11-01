@@ -8,7 +8,7 @@
   - Recursive find/replace git project by version pattern.
 
 ## 0.2.0 (Novembro 01, 2016)
-  - Include commit behavior
+  - Include commit behavior.
 
 ## 0.1.0 (Novembro 01, 2016)
   - Upgrade documentation.
