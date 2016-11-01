@@ -1,8 +1,5 @@
 ## 0.5.0 (Novembro 01, 2016)
   - Include README.md empty file.
-  - New file
-  - Revert 0.5.0 version to 0.4.1
-  - Bump version to 0.5.0.
   - Automatically add changed files to git version control.
 
 ## 0.4.1 (Novembro 01, 2016)
