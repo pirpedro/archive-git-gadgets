@@ -206,7 +206,7 @@ if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
 fi
 
 if [[ ! -z "$RECURSIVE" ]]; then
-  git grep -l "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g"
+  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g"
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
 fi
