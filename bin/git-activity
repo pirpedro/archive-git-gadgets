@@ -26,10 +26,6 @@ reset=$(tput sgr0)
 # actually parse the options and do stuff
 while [[ $1 = -?* ]]; do
     case $1 in
-        -h|--help)
-            usage
-            exit 0
-            ;;
         --fetch)
             echo "Fetch updates"
             git fetch -q

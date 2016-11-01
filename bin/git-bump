@@ -204,14 +204,13 @@ if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
       ;;
   esac
 fi
-set -x
 if [[ ! -z "$RECURSIVE" ]]; then
   git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
   git add $VERSION_FILE
 fi
-set +x
+
 echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
 if [[ ! -z `git show-ref --tags | grep "refs/tags/v$BASE_STRING"` ]]; then
   git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
