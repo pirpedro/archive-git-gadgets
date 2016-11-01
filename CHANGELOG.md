@@ -1,3 +1,6 @@
+## 0.2.0 (Novembro 01, 2016)
+  - Include commit behavior
+
 ## 0.1.0 (Novembro 01, 2016)
   - Upgrade documentation.
   - First functional build of 'git-bump'.
