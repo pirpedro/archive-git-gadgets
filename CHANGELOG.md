@@ -1,3 +1,6 @@
+## 0.4.0 (Novembro 01, 2016)
+  - Include push behavior.
+
 ## 0.3.0 (Novembro 01, 2016)
   - Recursive find/replace git project by version pattern.
 
