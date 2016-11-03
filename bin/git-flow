@@ -17,7 +17,7 @@ USAGE=`cat << EOF
 
       start     mostly create a new branch in [FLOW] phase and
                 bump version if necessary.
-                
+
       finish    mostly merge the changes in [FLOW] phase and
                 create tags if necessary.
 
@@ -61,7 +61,7 @@ __release(){
     finish )
       BRANCH=${1:-`git stats --current-branch`}
       git bump --tag
-      git checkout master && git merge --no-ff release/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff release/$BRANCH && git checkout release/$BRANCH; };
+      git checkout master && git merge --no-ff release/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff release/$BRANCH && git checkout release/$BRANCH;
       ;;
     push )
       BRANCH=${1:-`git stats --current-branch`}
