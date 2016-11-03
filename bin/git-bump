@@ -228,6 +228,30 @@ fi
 
 git add $CHANGELOG_FILE
 
+if [[ ! -z "$INTERACTIVE" && -z "$COMMIT" ]]; then
+  echo -ne "${QUESTION_FLAG} Commit and create tag to branch? [${COLOR_WHITE}Yy${COLOR_GREEN}]: "
+  read answer_commit
+  case "$answer_commit" in
+    [Nn]* )
+      ;;
+    *)
+      COMMIT=true
+      ;;
+  esac
+fi
+
+if [[ ! -z "$INTERACTIVE" && -z "$PUSH" ]]; then
+  echo -ne "${QUESTION_FLAG} Push changes to ${COLOR_WHITE}$TARGET_BRANCH${COLOR_GREEN} branch? [${COLOR_WHITE}Yy${COLOR_GREEN}]: "
+  read answer_push
+  case "$answer_push" in
+    [Nn]* )
+      ;;
+    *)
+      PUSH=true
+      ;;
+  esac
+fi
+
 if [[ ! -z "$PUSH" || ! -z "$COMMIT" ]]; then
   git commit -m "Bump version to ${SUGGESTED_VERSION}."
   git tag -a -m "Tag version ${SUGGESTED_VERSION}." "v${SUGGESTED_VERSION}"
@@ -237,9 +261,6 @@ if [[ ! -z "$PUSH" ]]; then
   if [[ ! -z $NEW_BRANCH ]]; then git merge --no-ff $NEW_BRANCH; fi
   git push origin $TARGET_BRANCH
   git push origin --tags
+  echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
+
 fi
-
-#echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
-
-
-#git push origin --tags

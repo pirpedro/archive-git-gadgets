@@ -1,3 +1,6 @@
+## 0.7.0 (Novembro 01, 2016)
+  - Include interactive mode for PUSH and COMMIT options.
+
 ## 0.6.1 (Novembro 01, 2016)
   - Remove -h so git can handle it.
 
