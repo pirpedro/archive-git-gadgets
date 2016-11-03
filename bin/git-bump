@@ -229,7 +229,7 @@ if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
   esac
 fi
 if [[ ! -z "$RECURSIVE" ]]; then
-  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i '' "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
+  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
   git add $VERSION_FILE
