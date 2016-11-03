@@ -18,7 +18,7 @@ for arg do
   case "$arg" in
     --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit; ;;
     --long-current-branch )  git rev-parse --abbrev-ref HEAD;  exit; ;;
-    --root-path ) git rev-parse --show-toplevel;
+    --root-path ) git rev-parse --show-toplevel; exit; ;;
     *) set -- "$@" "$arg"; ;;
   esac
 done
