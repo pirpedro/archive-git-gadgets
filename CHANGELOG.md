@@ -1,3 +1,9 @@
+## 0.8.0 (novembro 03, 2016)
+  - Fixed 'release start'
+  - Create git-flow extension.
+  - Create 'tag' parameter.
+  - git stats show informations about the git repository.
+
 ## 0.7.0 (Novembro 01, 2016)
   - Include interactive mode for PUSH and COMMIT options.
 

@@ -1,0 +1,101 @@
+#!/bin/bash
+
+#git scritp variables
+SUBDIRECTORY_OK="yes"
+USAGE=`cat << EOF
+[FLOW] [ACTION] [BRANCH_NAME]
+
+      Google for 'git flow' to understand the approach.
+
+      FLOW
+
+      feature  - do actions in feature phase of the workflow
+      release  - do actions in release phase of the workflow
+      hotfix   - do actions in hotfix phase of the workflow
+
+      ACTION
+
+      start     mostly create a new branch in [FLOW] phase and
+                bump version if necessary.
+
+      finish    mostly merge the changes in [FLOW] phase and
+                create tags if necessary.
+
+      push      mostly syncronize master and develop branchs
+                with remote and remove the [FLOW] branch created.
+
+EOF`
+source "$(git --exec-path)/git-sh-setup"
+
+flow="$1"; shift;
+action="$1"; shift;
+
+
+__develop_branch(){
+    if [ `git for-each-ref --format='%(refname)' refs/heads/ | grep -w develop` ]; then echo "develop"; else echo "master"; fi
+}
+
+__feature(){
+  case "$action" in
+    start )
+      git checkout -b feature/$1 $(__develop_branch);
+      ;;
+    finish )
+      BRANCH=${1:-`git stats --current-branch`}
+      git checkout $(__develop_branch) && git merge --no-ff feature/$BRANCH && git checkout feature/$BRANCH;
+      ;;
+    push )
+      BRANCH=${1:-`git stats --current-branch`}
+      git checkout $(__develop_branch) && git push origin $(__develop_branch) && git branch -d feature/$BRANCH;
+      ;;
+  esac
+
+
+}
+
+__release(){
+  case "$action" in
+    start )
+      git bump -R --release --commit
+      ;;
+    finish )
+      BRANCH=${1:-`git stats --current-branch`}
+      git bump --tag
+      git checkout master && git merge --no-ff release/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff release/$BRANCH && git checkout release/$BRANCH;
+      ;;
+    push )
+      BRANCH=${1:-`git stats --current-branch`}
+      git push origin master && git push origin $(__develop_branch) && git push origin --tags && git checkout $(__develop_branch) &&  git branch -d release/$BRANCH;
+      ;;
+  esac
+
+}
+
+__hotfix(){
+  case "$action" in
+    start )
+      git bump -R --hotfix --commit master
+      ;;
+    finish )
+      BRANCH=${1:-`git stats --current-branch`}
+      git checkout master && git merge --no-ff hotfix/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff hotfix/$BRANCH && git checkout hotfix/$BRANCH;
+      ;;
+    push )
+        BRANCH=${1:-`git stats --current-branch`}
+        git push origin master && git push origin $(__develop_branch) && git push origin --tags && git checkout $(__develop_branch) && git branch -d hotfix/$BRANCH;
+      ;;
+  esac
+
+}
+
+case "$flow" in
+  feature )
+      __feature $@
+    ;;
+  release )
+      __release $@
+    ;;
+  hotfix )
+      __hotfix $@
+    ;;
+esac
