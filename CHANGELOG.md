@@ -1,3 +1,8 @@
+## 0.8.1 (novembro 03, 2016)
+  - [stats] Fix compiling bug.
+  - [stats] Include --root-path parameter.
+  - Merge branch 'release/0.8.0' into develop
+
 ## 0.8.0 (novembro 03, 2016)
   - Fixed 'release start'
   - Create git-flow extension.
