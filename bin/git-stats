@@ -1,0 +1,22 @@
+#!/bin/bash
+
+#git scritp variables
+SUBDIRECTORY_OK="yes"
+USAGE=`cat << EOF
+[OPTIONS]
+
+      OPTIONS
+
+      --current-branch              Show the last part of the current branch name.
+      --long-current-branch         Show the current branch full name
+EOF`
+source "$(git --exec-path)/git-sh-setup"
+
+for arg do
+  shift
+  case "$arg" in
+    --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit; ;;
+    --long-current-branch )  git rev-parse --abbrev-ref HEAD;  exit; ;;
+    *) set -- "$@" "$arg"; ;;
+  esac
+done
