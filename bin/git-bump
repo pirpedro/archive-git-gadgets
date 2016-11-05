@@ -22,14 +22,11 @@ USAGE=`cat << EOF
 
   OPTIONS
 
-         --hotfix       Inform that a new hotfix branch will
-                        be created. Increment by 'patch' if
-                        no parameter was passed.
-
     -c | --commit       Commit and tag version changes.
 
-         --hotfix       Inform that a new hotfix branch will be created
-                        and increment 'patch' as default.
+    --hotfix            Inform that a new hotfix branch will
+                        be created. Increment by 'patch' if
+                        no parameter was passed.
 
     -i | --interactive  Use interactive mode.
 

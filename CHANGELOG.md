@@ -1,11 +1,9 @@
 ## 0.8.2 (Novembro 03, 2016)
   - [bump] BSD users need gnu-sed to recursive mode work.
-  - Merge branch 'hotfix/0.8.1' into develop
 
 ## 0.8.1 (novembro 03, 2016)
   - [stats] Fix compiling bug.
   - [stats] Include --root-path parameter.
-  - Merge branch 'release/0.8.0' into develop
 
 ## 0.8.0 (novembro 03, 2016)
   - Fixed 'release start'
