@@ -1,3 +1,6 @@
+## 0.9.0 (Novembro 05, 2016)
+  - Create documentation for github.
+
 ## 0.8.2 (Novembro 03, 2016)
   - [bump] BSD users need gnu-sed to recursive mode work.
 
