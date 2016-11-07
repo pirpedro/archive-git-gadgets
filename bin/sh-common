@@ -104,8 +104,19 @@ question(){ __notify --color="${question_color}" --flag="${QUESTION_FLAG}" "$@";
 warn(){ __notify --color="${warn_color}" --flag="${WARN_FLAG}" "$@";}
 die() { warn "Fatal: $@"; exit 1; }
 
+#
+# Make a question
+#
+# Params:
+#
+# --question=<value>         question string
+# --options=<value>          a comma separated string with options
+# --default=<default_value   choose a default answer throught options list
+# --boolean                  create a boolean (yes|no) question
+#
 ask(){
   unset ask_answer
+  local ask_default_value
   for arg do
     shift
     case "$arg" in
@@ -113,38 +124,41 @@ ask(){
           local question_msg=${arg##--question=}; ;;
       --options=* )
           local options=${arg##--options=}; ;;
-      --default=* ) local default_value=${arg##--default=}; ;;
+      --default=* ) ask_default_value=${arg##--default=}; ;;
+      --boolean ) options="yes,no"; ask_default_value=${ask_default_value:-"yes"}; ;;
     esac
   done
   options_string=`sed -r 's/,/|/g' <<< "$options"`
   question -f -n "${question_msg} [${options_string}]: "
   read answer
-  answer=${answer:-$default_value}
+  answer=${answer:-$ask_default_value}
   old_ifs=${IFS}; IFS=","; array=($options); IFS=${old_ifs}
   for ((i = 0; i < ${#array[@]}; i++)); do
     if startswith "${array[i]}" "${answer}"; then
       export ask_answer=${array[i]}
-      break
+      return
     fi
   done
+  export ask_answer=${ask_default_value}
 }
-ask_boolean(){
-  msg=$1
-  default=${2:-$FLAG_TRUE}
-  if check_boolean "$default"; then
-    default_string="[__Yy__]: "
-  else
-    default_string="[__Nn__]: "
-  fi
 
-  question -n "$msg ${default_string}"
-  read answer
-  answer=${answer:-default}
-#  if convert_boolean "$answer" == "$default"; then
+#
+# Create a boolean question
+#
+# ask_boolean "msg" [FLAG_TRUE-default|FLAG_FALSE]
+#
+# check answer "yes" or "no" in variable ask_answer
+ask_boolean(){
+  local msg=$1
+  local default=${2:-$FLAG_TRUE}
+  local default_string
+  if check_boolean "$default"; then
+    default_string="yes"
+  else
+    default_string="no"
+  fi
+  ask --question="$msg" --default="${default_string}" --boolean
 }
-verbosity on
-ask --question="Criar branch" --options="no branch,release,hotfix" --default="hotfix"
-echo $ask_answer
 
 location(){
   case $(uname -s) in
