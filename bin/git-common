@@ -1,0 +1,7 @@
+#!/bin/bash
+
+source ./sh-common
+
+__develop_branch(){
+    if [ `git for-each-ref --format='%(refname)' refs/heads/ | grep -w develop` ]; then echo "develop"; else echo "master"; fi
+}
