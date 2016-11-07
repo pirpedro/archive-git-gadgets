@@ -20,11 +20,44 @@ EOF`
 
 source "$(git --exec-path)/git-sh-setup"
 
+location(){
+  case $(uname -s) in
+  Linux)
+  	echo $(dirname "$(readlink -e "$0")")
+  	;;
+  FreeBSD|OpenBSD|NetBSD)
+  	echo $(dirname "$(realpath "$0")")
+  	;;
+  Darwin)
+  	PRG="$0"
+  	while [ -h "$PRG" ]; do
+  		link=$(readlink "$PRG")
+  		if expr "$link" : '/.*' > /dev/null; then
+  			PRG="$link"
+  		else
+  			PRG="$(dirname "$PRG")/$link"
+  		fi
+  	done
+  	echo $(dirname "$PRG")
+  	;;
+  *MINGW*)
+  	echo $(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  	pwd () {
+  		builtin pwd -W
+  	}
+  	;;
+  *)
+  	echo GITFLOW_DIR=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  	;;
+  esac
+}
+
+source $(location)/git-common
+
 flow="$1"; shift;
 action="$1"; shift;
-__develop_branch(){
-    if [ `git for-each-ref --format='%(refname)' refs/heads/ | grep -w develop` ]; then echo "develop"; else echo "master"; fi
-}
+
+
 __feature(){
   case "$action" in
     start )
@@ -82,4 +115,3 @@ case "$flow" in
       __hotfix $@
     ;;
 esac
-Contact GitHub API Training Shop Blog About
