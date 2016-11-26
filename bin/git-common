@@ -1,0 +1,124 @@
+#!/bin/bash
+
+source $(git stats --script-location $0)/sh-common
+source $(git --exec-path)/git-sh-setup
+
+gadgets_is_initialized(){
+  $(git config --get-regexp gadgets >/dev/null 2>&1)
+}
+
+git_is_initialized(){
+  gadgets_is_initialized && \
+  $(git config --get-regexp gadgets.$1 >/dev/null 2>&1)
+}
+
+git_flow_is_initialized(){
+  git_is_initialized flow
+}
+
+git_get(){ git config --get gadgets.$1; }
+git_set(){ git config $1 gadgets.$2 "$3"; }
+
+git_local_branch_exists(){
+  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)" ]
+}
+
+git_remote_branch_exists(){
+  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$(git for-each-ref --format='%(refname:short)' refs/remotes/$1)" ]
+}
+
+git_branch_exists(){
+  [ -n "$1" ] || die "No branch name passed."
+  git_local_branch_exists "$1" || git_remote_branch_exists "$ORIGIN/$1"
+}
+
+git_tag_exists(){
+  [ -n "$1" ] || die "No tag name passed."
+  [ -n "$(git for-each-ref --format='%(refname:short)' refs/tags/$1)" ]
+}
+
+git_remote_branch_delete(){
+  [ -n "$1" ] || die "No branch name passed."
+  if git_remote_branch_exists "$ORIGIN/$1"; then
+    git push "$ORIGIN" :"$1" || die "Not possible to delete remote branch $1 in $origin"
+  else
+    warn "Remote branch $1 doesn't exists."
+  fi
+}
+
+git_config_has_master(){
+  local master=$(git_get branch.master)
+  [ "$master" != "" ] && git_local_branch_exists "$master"
+}
+
+git_config_has_develop(){
+  local develop=$(git_get flow.branch.develop)
+  [ "$develop" != "" ] && git_local_branch_exists "$develop"
+}
+
+gadgets_load_settings(){
+  export ORIGIN=$(git_get origin || echo origin)
+  export MASTER_BRANCH=$(git_get branch.master)
+}
+
+git_local_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/heads; }
+git_remote_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/remotes; }
+git_branchs(){ git for-each-ref --sort refname --format='%(refname:short)' refs/remotes refs/heads; }
+git_tags(){ git for-each-ref --format='%(refname:short)' refs/tags; }
+
+git_prefix_branches(){
+  [ -n "$1" ] || die "Prefix missing."
+  git for-each-ref --format='%(refname:short)' refs/heads/$1\*
+}
+
+gadgets_init(){
+  local master branch_count suggestion
+  case "$1" in
+    -f|--force ) set_flag force; ;;
+  esac
+
+  if gadgets_is_initialized && ! flag force; then
+    warn -f "Git gadgets is already initialized."
+    exit 0
+  fi
+
+  if git_config_has_master && ! flag force; then
+    master=$(git_get branch.master)
+  else
+    branch_count=$(git_local_branches | wc -l)
+    if [ "$branch_count" -eq 0 ]; then
+      note -f "No branches exists. We need to create it."
+      suggestion=$(git_get branch.master || echo master)
+    else
+      note -f "You have these branchs:"
+      git_local_branches | sed 's/^.*$/   - &/g'
+      suggestion=
+			for mybranch in $(git_get branch.master) 'production' 'main' 'master'; do
+				if git_local_branch_exists "$mybranch"; then
+					suggestion="$mybranch"
+					break
+				fi
+			done
+    fi
+
+    ask --default="$suggestion" --free-answer --question="Branch name for production (master) branch"
+    master=${ask_answer}
+  fi
+
+  if git_local_branch_exists "$master"; then
+    note -f "Master branch configured."
+  elif ! git_local_branch_exists "$master" && git_remote_branch_exists "$ORIGIN/$master"; then
+    git branch "$master" "$ORIGIN/$master" >/dev/null 2>&1
+  elif ! git_local_branch_exists "$master"; then
+    die "Local branch $master not found."
+  fi
+
+  git_set --local branch.master "$master"
+
+  if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
+    git symbolic-ref HEAD "refs/heads/$master"
+    git commit --allow-empty --quiet -m "Initial Commit"
+  fi
+}

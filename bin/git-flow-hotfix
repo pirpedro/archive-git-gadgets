@@ -1,0 +1,22 @@
+#!/bin/bash
+
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-common
+
+git_get flow.prefix.hotfix >/dev/null 2>&1 || die "Flow is not using hotfix branches. Use 'git flow init -f' to reconfigure."
+prefix=$(git_get flow.prefix.hotfix)
+
+start(){
+  git bump -R --hotfix --commit $MASTER_BRANCH
+}
+
+finish(){
+      BRANCH=${1:-`git stats --current-branch`}
+      git checkout $MASTER_BRANCH && git merge --no-ff $prefix$BRANCH && git checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git checkout $prefix$BRANCH;
+}
+
+push(){
+        BRANCH=${1:-`git stats --current-branch`}
+        git push $ORIGIN $MASTER_BRANCH && git push $ORIGIN $DEVELOP_BRANCH && git push $ORIGIN --tags && git checkout $DEVELOP_BRANCH && git branch -d $prefix$BRANCH;
+}
