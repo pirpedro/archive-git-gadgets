@@ -20,7 +20,3 @@ push(){
   BRANCH=${1:-`git stats --current-branch`}
   git checkout $DEVELOP_BRANCH && git push origin $DEVELOP_BRANCH && git branch -d $DEVELOP_BRANCH$BRANCH;
 }
-
-list(){
-  #TODO
-}
