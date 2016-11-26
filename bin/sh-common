@@ -116,18 +116,22 @@ die() { warn "Fatal: $@"; exit 1; }
 #
 ask(){
   unset ask_answer
-  local ask_default_value
+  local ask_default_value question_msg options
   for arg do
     shift
     case "$arg" in
       --question=* )
-          local question_msg=${arg##--question=}; ;;
+          question_msg=${arg##--question=}; ;;
       --options=* )
-          local options=${arg##--options=}; ;;
+          options=${arg##--options=}; ;;
       --default=* ) ask_default_value=${arg##--default=}; ;;
       --boolean ) options="yes,no"; ask_default_value=${ask_default_value:-"yes"}; ;;
+      --free-answer ) set_flag free; ;;
     esac
   done
+  if [[ -z "$options" &&  -n "$ask_default_value" ]]; then
+    options="$ask_default_value"
+  fi
   options_string=`sed -r 's/,/|/g' <<< "$options"`
   question -f -n "${question_msg} [${options_string}]: "
   read answer
@@ -139,6 +143,11 @@ ask(){
       return
     fi
   done
+  if flag free; then
+    export ask_answer=${answer:-$ask_default_value}
+    unset_flag free
+    return
+  fi
   export ask_answer=${ask_default_value}
 }
 
@@ -163,13 +172,13 @@ ask_boolean(){
 location(){
   case $(uname -s) in
   Linux)
-  	echo $(dirname "$(readlink -e "$0")")
+  	echo $(dirname "$(readlink -e "$1")")
   	;;
   FreeBSD|OpenBSD|NetBSD)
-  	echo $(dirname "$(realpath "$0")")
+  	echo $(dirname "$(realpath "$1")")
   	;;
   Darwin)
-  	PRG="$0"
+  	PRG="$1"
   	while [ -h "$PRG" ]; do
   		link=$(readlink "$PRG")
   		if expr "$link" : '/.*' > /dev/null; then
@@ -181,13 +190,18 @@ location(){
   	echo $(dirname "$PRG")
   	;;
   *MINGW*)
-  	echo $(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  	echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
   	pwd () {
   		builtin pwd -W
   	}
   	;;
   *)
-  	echo GITFLOW_DIR=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+  	echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
   	;;
   esac
 }
+
+set_flag(){ eval "FLAG_$1=${FLAG_TRUE}"; }
+set_global_flag(){ export "FLAG_$1=${FLAG_TRUE}"; }
+flag(){ local varname="FLAG_$1"; [ "${!varname}" == "${FLAG_TRUE}" ]; }
+unset_flag(){ unset "FLAG_$1"; }

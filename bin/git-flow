@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#git scritp variables
+#git script variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
 [FLOW] [ACTION] [BRANCH_NAME]
@@ -18,100 +18,32 @@ USAGE=`cat << EOF
                 with remote and remove the [FLOW] branch created.
 EOF`
 
-source "$(git --exec-path)/git-sh-setup"
+source $(git stats --script-location $0)/git-common
 
-location(){
-  case $(uname -s) in
-  Linux)
-  	echo $(dirname "$(readlink -e "$0")")
-  	;;
-  FreeBSD|OpenBSD|NetBSD)
-  	echo $(dirname "$(realpath "$0")")
-  	;;
-  Darwin)
-  	PRG="$0"
-  	while [ -h "$PRG" ]; do
-  		link=$(readlink "$PRG")
-  		if expr "$link" : '/.*' > /dev/null; then
-  			PRG="$link"
-  		else
-  			PRG="$(dirname "$PRG")/$link"
-  		fi
-  	done
-  	echo $(dirname "$PRG")
-  	;;
-  *MINGW*)
-  	echo $(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
-  	pwd () {
-  		builtin pwd -W
-  	}
-  	;;
-  *)
-  	echo GITFLOW_DIR=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
-  	;;
-  esac
+load_settings(){
+  gadgets_load_settings
+  export DEVELOP_BRANCH=$(git_get flow.branch.develop)
 }
-
-source $(location)/git-common
 
 flow="$1"; shift;
-action="$1"; shift;
+if ! startswith "$1" "-"; then
+  action="$1"; shift;
+fi
 
+load_settings
 
-__feature(){
-  case "$action" in
-    start )
-      git checkout -b feature/$1 $(__develop_branch);
-      ;;
-    finish )
-      BRANCH=${1:-`git stats --current-branch`}
-      git checkout $(__develop_branch) && git merge --no-ff feature/$BRANCH && git checkout feature/$BRANCH;
-      ;;
-    push )
-      BRANCH=${1:-`git stats --current-branch`}
-      git checkout $(__develop_branch) && git push origin $(__develop_branch) && git branch -d feature/$BRANCH;
-      ;;
-  esac
-}
-__release(){
-  case "$action" in
-    start )
-      git bump -R --release --commit
-      ;;
-    finish )
-      BRANCH=${1:-`git stats --current-branch`}
-      git bump --tag
-      git checkout master && git merge --no-ff release/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff release/$BRANCH && git checkout release/$BRANCH;
-      ;;
-    push )
-      BRANCH=${1:-`git stats --current-branch`}
-      git push origin master && git push origin $(__develop_branch) && git push origin --tags && git checkout $(__develop_branch) &&  git branch -d release/$BRANCH;
-      ;;
-  esac
-}
-__hotfix(){
-  case "$action" in
-    start )
-      git bump -R --hotfix --commit master
-      ;;
-    finish )
-      BRANCH=${1:-`git stats --current-branch`}
-      git checkout master && git merge --no-ff hotfix/$BRANCH && git checkout $(__develop_branch) && git merge --no-ff hotfix/$BRANCH && git checkout hotfix/$BRANCH;
-      ;;
-    push )
-        BRANCH=${1:-`git stats --current-branch`}
-        git push origin master && git push origin $(__develop_branch) && git push origin --tags && git checkout $(__develop_branch) && git branch -d hotfix/$BRANCH;
-      ;;
-  esac
-}
-case "$flow" in
-  feature )
-      __feature $@
-    ;;
-  release )
-      __release $@
-    ;;
-  hotfix )
-      __hotfix $@
-    ;;
-esac
+FLOW_FILE=$(location $0)/git-flow-$flow
+if [[ -e $FLOW_FILE ]]; then
+  if [[ ! -x $FLOW_FILE ]]; then
+    sudo chmod +x $FLOW_FILE
+  fi
+
+  if ! git_flow_is_initialized && [ "$flow" != "init" ]; then
+    die "Flow is not initalized. Please execute 'git flow init' to start setup."
+  fi
+  #Run flow
+  . $FLOW_FILE
+  "${action:-"default"}" "$@"
+else
+  usage
+fi

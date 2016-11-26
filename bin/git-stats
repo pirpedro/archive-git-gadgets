@@ -10,6 +10,7 @@ USAGE=`cat << EOF
       --current-branch              Show the last part of the current branch name.
       --long-current-branch         Show the current branch full name
       --root-path                   Show root path of current git repository
+      --script-location             Show the real location of a passed script file.
 EOF`
 source "$(git --exec-path)/git-sh-setup"
 
@@ -19,6 +20,37 @@ for arg do
     --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit; ;;
     --long-current-branch )  git rev-parse --abbrev-ref HEAD;  exit; ;;
     --root-path ) git rev-parse --show-toplevel; exit; ;;
+    --script-location )
+      case $(uname -s) in
+      Linux)
+        echo $(dirname "$(readlink -e "$1")")
+        ;;
+      FreeBSD|OpenBSD|NetBSD)
+        echo $(dirname "$(realpath "$1")")
+        ;;
+      Darwin)
+        PRG="$1"
+        while [ -h "$PRG" ]; do
+          link=$(readlink "$PRG")
+          if expr "$link" : '/.*' > /dev/null; then
+            PRG="$link"
+          else
+            PRG="$(dirname "$PRG")/$link"
+          fi
+        done
+        echo $(dirname "$PRG")
+        ;;
+      *MINGW*)
+        echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
+        pwd () {
+          builtin pwd -W
+        }
+        ;;
+      *)
+        echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
+        ;;
+      esac
+      ;;
     *) set -- "$@" "$arg"; ;;
   esac
 done
