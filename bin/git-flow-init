@@ -1,0 +1,91 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-common
+
+default(){
+  local config_scope="--local";
+  for arg do
+    shift
+    case "$arg" in
+      --file=* ) config_scope="--file '${arg##--file=}'";;
+      local|global|system) config_scope="--$arg" ;;
+      -f ) set_flag force ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    git init
+  fi
+
+  if git_flow_is_initialized && ! flag force; then
+    warn -f "Git flow is already initialized."
+    warn -f "Use 'git flow init -f' to force reinitialization."
+    exit 0
+  fi
+
+  if ! gadgets_is_initialized || flag force; then
+    gadgets_init --force
+  fi
+
+  local master_branch develop branch_count suggestion
+  master_branch=$(git_get branch.master)
+if git_config_has_develop && ! flag force; then
+    develop=$(git_get flow.branch.develop)
+  else
+    branch_count=$(git_local_branches | grep -v "^${master_branch}\$" | wc -l)
+    if [ "$branch_count" -eq 0 ]; then
+      note -f "No candidates branches exists. We need to create one."
+      suggestion=$(git_get flow.branch.develop || echo develop)
+    else
+      note -f "You have these branchs:"
+      git_local_branches | grep -v "^${master_branch}\$" | sed 's/^.*$/   - &/g'
+      suggestion=""
+      for mybranch in $(git_get branch.develop) 'develop' 'int' 'integration' 'master'; do
+        if git_local_branch_exists "$mybranch" && [ "$mybranch" != "$master_branch" ]; then
+          suggestion="${mybranch}"
+          break
+        fi
+      done
+    fi
+    ask --default="${suggestion:-develop}" --free-answer --question="Name for integration (develop) branch"
+    develop=${ask_answer}
+  fi
+
+  if [[ "$master_branch" = "$develop" ]]; then
+    die "Master and develop branch must differ."
+  fi
+
+  git_set $config_scope flow.branch.develop "$develop"
+
+  local created_develop=${FLAG_FALSE}
+  if ! git_local_branch_exists "$develop"; then
+    if git_remote_branch_exists "$ORIGIN/$develop"; then
+      git branch "$develop" "$ORIGIN/$develop">/dev/null 2>&1
+    else
+      git branch --no-track "$develop" "$master_branch"
+    fi
+    created_develop=${FLAG_TRUE}
+  fi
+
+  if ! git_flow_is_initialized; then die "Something went wrong in the setup."; fi
+
+  git checkout -q "$develop" || die "Not possible to checkout branch $develop."
+
+  local prefix_suggestion
+  for prefix in 'feature' 'release' 'hotfix'; do
+    if ! git_get flow.prefix."$prefix" >/dev/null 2>&1 || flag force; then
+      prefix_suggestion=$(git_get flow.prefix."$prefix" || echo "$prefix/")
+      ask_boolean "Do you want to use $prefix branches"
+      if check_boolean "$ask_answer"; then
+        ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
+        git_set $config_scope flow.prefix."$prefix" "${ask_answer}"
+      else
+        git_set $config_scope flow.prefix."$prefix"
+      fi
+    fi
+  done
+}
