@@ -44,106 +44,72 @@ USAGE=`cat << EOF
 
 EOF`
 
-source "$(git --exec-path)/git-sh-setup"
+source $(git stats --script-location $0)/git-common
 
 NOW="$(date +'%B %d, %Y')"
-COLOR_RED="\033[1;31m"
-COLOR_GREEN="\033[1;32m"
-COLOR_YELLOW="\033[1;33m"
-COLOR_BLUE="\033[1;34m"
-COLOR_PURPLE="\033[1;35m"
-COLOR_CYAN="\033[1;36m"
-COLOR_WHITE="\033[1;37m"
-COLOR_RESET="\033[0m"
 
-QUESTION_FLAG="${COLOR_GREEN}?"
-WARNING_FLAG="${COLOR_YELLOW}!"
-NOTICE_FLAG="${COLOR_CYAN}❯"
+VERSION_FILE=$(git stats --root-path)/.version
+CHANGELOG_FILE=$(git stats --root-path)/CHANGELOG.md
+TEMP_FILE=$(git stats --root-path)/tmpfile
 
-VERSION_FILE=$(git rev-parse --show-toplevel)/.version
-CHANGELOG_FILE=$(git rev-parse --show-toplevel)/CHANGELOG.md
-TEMP_FILE=$(git rev-parse --show-toplevel)/tmpfile
-
-while [[ "$#" -gt 0 ]]; do
-  if [[ "$1" != -* ]]; then break; fi
-  key="$1"; shift;
-  if [[ ! -z $1 && "$1" != -* ]]; then value="$1"; fi
-  case $key in
-    -c|--commit)
-      COMMIT=true
-      ;;
-    --hotfix)
-      HOTFIX=true
-      ;;
-    -i|--interactive)
-      INTERACTIVE=true
-      ;;
-    -p|--push)
-       PUSH=true
-  #    PUSH_BRANCH=${value}
-  #    test -z $value || shift
-      ;;
-    -r|--release)
-      RELEASE=true
-      ;;
-    -R|--recursive)
-      RECURSIVE=true
-      ;;
+for arg do
+  shift
+  case "$arg" in
+    -c|commit) set_flag commit; ;;
+    --hotfix) set_flag hotfix; ;;
+    -i|--interactive) set_flag interactive; verbosity on; ;;
+    -p|--push) set_flag push; ;;
+    -r|--release) set_flag release; ;;
+    -R|--recursive) set_flag recursive; ;;
     -t|--tag)
-        version=$(cat .version)
-        if [[ `git tag -l "v$version"` ]]; then
-            if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
-              git tag -d $version
-              echo -e "${NOTICE_FLAG} Removing current tag."
-            else
-              echo -e "${WARNING_FLAG} No changes made since last tag. Nothing to do."
-              exit;
-            fi
-        fi
-        git_editor $CHANGELOG_FILE
-        echo -e "${NOTICE_FLAG} Creating new tag for version ${COLOR_WHITE}$version${COLOR_GREEN}."
-        git add $VERSION_FILE $CHANGELOG_FILE
-        git tag -a -m "Tag version $version." "v$version"
-        exit;
+      version=$(cat .version)
+      if [[ `git tag -l "v$version"` ]]; then
+          if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
+            git tag -d $version
+            echo -e "${NOTICE_FLAG} Removing current tag."
+          else
+            echo -e "${WARNING_FLAG} No changes made since last tag. Nothing to do."
+            exit;
+          fi
+      fi
+      git_editor $CHANGELOG_FILE
+      echo -e "${NOTICE_FLAG} Creating new tag for version ${COLOR_WHITE}$version${COLOR_GREEN}."
+      git add $VERSION_FILE $CHANGELOG_FILE
+      git tag -a -m "Tag version $version." "v$version"
+      exit;
       ;;
-    -v|--version)
-      if test -z $value; then
+    --version=*)
+      PARAM_VERSION=${arg##--version=}
+      if test -z $PARAM_VERSION; then
         echo "You need to pass version number"; exit 1;
-      else
-        PARAM_VERSION=${value}; shift;
       fi
       ;;
-    # Unknown option. No need for an error, getopts informs
-    # the user itself.
-    *) usage; exit 1;
+    *) set -- "$@" "$arg"; ;;
   esac
 done
 
-if [[ "$1" != -* ]]; then
+if ! startswith "$1" "-"; then
   case "$1" in
     major|minor|patch )
       INCREMENT="$1"; shift;
       ;;
   esac
 fi
-if [[ "$1" != -* ]]; then TARGET_BRANCH="$1"; fi
+if ! startswith "$1" "-"; then TARGET_BRANCH="$1"; fi
 TARGET_BRANCH=${TARGET_BRANCH:-`git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2`}
 
 LATEST_HASH=`git log --pretty=format:'%h' -n 1`
 
 if [[ ! -f $VERSION_FILE ]]; then
-  if [[ ! -z "$INTERACTIVE" ]]; then
-    echo -e "${WARNING_FLAG} Could not find a .version file."
-    echo -ne "${QUESTION_FLAG} Do you want to create a version file and start from scratch? [${COLOR_WHITE}y${COLOR_GREEN}]: "
-    read RESPONSE
-    if [[ "$RESPONSE" == "" || "$RESPONSE" == "Y" || "$RESPONSE" == "Yes" || "$RESPONSE" == "yes" || "$RESPONSE" == "YES" ]]; then RESPONSE="y"; fi
-  else
-    RESPONSE="y"
+  if flag interactive; then
+    warn -f "Could not find a .version file."
+    ask_boolean "Do you want to create a version file and start from scratch?"
+
   fi
-  if [ "$RESPONSE" = "y" ]; then
+  if ! flag interactive || check_boolean "${ask_answer}"; then
       echo "${PARAM_VERSION:-0.0.0}" > $VERSION_FILE
       echo "" > $CHANGELOG_FILE
-      echo -e "$NOTICE_FLAG Created '.version' and 'CHANGELOG.md' files in project root."
+      note -f "Created '.version' and 'CHANGELOG.md' files in project root."
   else
     exit 1;
   fi
@@ -154,10 +120,10 @@ BASE_LIST=(`echo $BASE_STRING | tr '.' ' '`)
 V_MAJOR=${BASE_LIST[0]}
 V_MINOR=${BASE_LIST[1]}
 V_PATCH=${BASE_LIST[2]}
-test -z "$INTERACTIVE" || echo -e "${NOTICE_FLAG} Current version: ${COLOR_WHITE}$BASE_STRING"
-test -z "$INTERACTIVE" || echo -e "${NOTICE_FLAG} Latest commit hash: ${COLOR_WHITE}$LATEST_HASH"
+note "Current version: __${BASE_STRING}__"
+note "Latest commit hash: __${LATEST_HASH}__"
 
-if [[ ! -z "$HOTFIX" && -z $INCREMENT ]]; then INCREMENT=patch; fi
+if flag hotfix && [ -z $INCREMENT ]; then INCREMENT=patch; fi
 INCREMENT=${INCREMENT:-minor}
 case "$INCREMENT" in
   major )
@@ -172,39 +138,32 @@ case "$INCREMENT" in
 esac
 SUGGESTED_VERSION="${PARAM_VERSION:-$V_MAJOR.$V_MINOR.$V_PATCH}"
 
-if [[ ! -z "$INTERACTIVE" ]]; then
-  echo -ne "${QUESTION_FLAG} Enter a version number [${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}]: "
-  read INPUT_STRING
-  if [ "$INPUT_STRING" != "" ]; then
-      SUGGESTED_VERSION = $INPUT_STRING
-  fi
+if flag interactive; then
+  ask --question="Enter a version number" --default="$SUGGESTED_VERSION" --free-answer
+  SUGGESTED_VERSION=${ask_answer}
 fi
-echo -e "${NOTICE_FLAG} Will set new version to be ${COLOR_WHITE}$SUGGESTED_VERSION${COLOR_GREEN}."
+note -f "Will set new version to be __${SUGGESTED_VERSION}__."
 
-if [[ ! -z "$INTERACTIVE" && -z "$HOTFIX" && -z "$RELEASE" ]]; then
-  echo -ne "${QUESTION_FLAG} Create new branch? [[${COLOR_WHITE}n${COLOR_GREEN}]o|[${COLOR_WHITE}h${COLOR_GREEN}]otfix|[${COLOR_WHITE}r${COLOR_GREEN}]elease]: "
-  read new_branch
-  case "$new_branch" in
-    [hH]* )
-      HOTFIX=true
+if flag interactive && ! flag hotfix && ! flag release; then
+  ask --question="Create new branch?" --options="no,release,hotfix" --default="no"
+  case "${ask_answer}" in
+    hotfix )
+      set_flag hotfix
       ;;
-    [rR]* )
-      RELEASE=true
+    release )
+      set_flag release
       ;;
   esac
 fi
-if [[ ! -z "$HOTFIX" ]]; then
+if flag hotfix; then
   NEW_BRANCH=hotfix/$SUGGESTED_VERSION
-elif [[ ! -z "$RELEASE" ]]; then
+elif flag release; then
   NEW_BRANCH=release/$SUGGESTED_VERSION
 fi
 
-if [[ ! -z "$INTERACTIVE" && (! -z "$HOTFIX"  || ! -z "$RELEASE") ]]; then
-  echo -ne "${QUESTION_FLAG} Enter new branch name [${COLOR_WHITE}$NEW_BRANCH${COLOR_GREEN}]: "
-  read new_branch_name
-  if [[ "$new_branch_name" != "" ]]; then
-    NEW_BRANCH = "$new_branch_name"
-  fi
+if flag interactive && (flag hotfix  || flag release); then
+  ask --question="Enter new branch name" --default="$NEW_BRANCH" --free-answer
+  NEW_BRANCH="${ask_answer}"
 fi
 
 if [[ ! -z "$NEW_BRANCH" ]]; then
@@ -213,19 +172,11 @@ fi
 
 #handling the version number changes
 
-if [[ -z "$RECURSIVE" && ! -z "$INTERACTIVE" ]]; then
-  echo -en "${QUESTION_FLAG} Recursively replace version number in project? [${COLOR_WHITE}yY${COLOR_GREEN}]: "
-  read recursively
-  case "$recursively" in
-    [Nn]* )
-      #do nothing
-      ;;
-    *)
-      RECURSIVE=true
-      ;;
-  esac
+if ! flag recursive && flag interactive; then
+  ask_boolean "Recursively replace version number in project?"
+  if check_boolean "${ask_answer}"; then set_flag recursive; fi
 fi
-if [[ ! -z "$RECURSIVE" ]]; then
+if flag recursive; then
   git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
 else
   echo $SUGGESTED_VERSION > $VERSION_FILE
@@ -233,7 +184,7 @@ else
 fi
 
 echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
-if [[ ! -z `git show-ref --tags | grep "refs/tags/v$BASE_STRING"` ]]; then
+if git_tag_exists "v$BASE_STRING"; then
   git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
 else
   git log --pretty=format:"  - %s" >> $TEMP_FILE
@@ -242,46 +193,32 @@ echo "" >> $TEMP_FILE
 echo "" >> $TEMP_FILE
 cat $CHANGELOG_FILE >> $TEMP_FILE
 mv $TEMP_FILE $CHANGELOG_FILE
-if [[ ! -z "$INTERACTIVE" ]]; then
-  echo -e "${QUESTION_FLAG} Now you can make adjustments to ${COLOR_WHITE}CHANGELOG.md${COLOR_GREEN}. Then press enter to continue."
+if flag interactive; then
+  note "Now you can make adjustments to __CHANGELOG.md__. Then press enter to continue."
   git_editor $CHANGELOG_FILE
 fi
 
 git add $CHANGELOG_FILE
 
-if [[ ! -z "$INTERACTIVE" && -z "$COMMIT" ]]; then
-  echo -ne "${QUESTION_FLAG} Commit and create tag to branch? [${COLOR_WHITE}Yy${COLOR_GREEN}]: "
-  read answer_commit
-  case "$answer_commit" in
-    [Nn]* )
-      ;;
-    *)
-      COMMIT=true
-      ;;
-  esac
+if flag interactive && ! flag commit; then
+  ask_boolean "Commit and create tag to branch?"
+  if check_boolean ${ask_answer}; then set_flag commit; fi
 fi
 
-if [[ ! -z "$INTERACTIVE" && -z "$PUSH" ]]; then
-  echo -ne "${QUESTION_FLAG} Push changes to ${COLOR_WHITE}$TARGET_BRANCH${COLOR_GREEN} branch? [${COLOR_WHITE}Yy${COLOR_GREEN}]: "
-  read answer_push
-  case "$answer_push" in
-    [Nn]* )
-      ;;
-    *)
-      PUSH=true
-      ;;
-  esac
+if flag interactive && ! flag push; then
+  ask_boolean "Push changes to __${TARGET_BRANCH}__ branch?"
+  if check_boolean ${ask_answer}; then set_flag push; fi
 fi
 
-if [[ ! -z "$PUSH" || ! -z "$COMMIT" ]]; then
+if flag push || flag commit; then
   git commit -m "Bump version to ${SUGGESTED_VERSION}."
   git tag -a -m "Tag version ${SUGGESTED_VERSION}." "v${SUGGESTED_VERSION}"
 fi
-if [[ ! -z "$PUSH" ]]; then
+
+if flag push; then
   git checkout $TARGET_BRANCH
   if [[ ! -z $NEW_BRANCH ]]; then git merge --no-ff $NEW_BRANCH; fi
   git push origin $TARGET_BRANCH
   git push origin --tags
   echo -e "${NOTICE_FLAG} Pushing new version to the ${WHITE}origin${CYAN}..."
-
 fi
