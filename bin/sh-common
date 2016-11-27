@@ -57,19 +57,20 @@ check_boolean(){
 #outputs
 verbosity(){
    if check_boolean "$1"; then
-      export VERBOSE_MODE=1;
+      set_global_flag verbosity
    fi
 }
 
 log(){
+  local force
   for arg do
     shift
     case "$arg" in
-      -f | --force) local force=${FLAG_TRUE} ;;
+      -f | --force) force=${FLAG_TRUE} ;;
       *) set -- "$@" "$arg" ;;
     esac
   done
-[[ -z "$VERBOSE_MODE" && -z "$force" ]] || echo "$@";
+  flag verbosity && test -z "$force" || echo "$@";
 }
 
 #
