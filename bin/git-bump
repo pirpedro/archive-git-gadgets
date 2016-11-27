@@ -55,6 +55,7 @@ TEMP_FILE=$(git stats --root-path)/tmpfile
 for arg do
   shift
   case "$arg" in
+    major|minor|patch) INCREMENT="$arg"; ;;
     -c|commit) set_flag commit; ;;
     --hotfix) set_flag hotfix; ;;
     -i|--interactive) set_flag interactive; verbosity on; ;;
@@ -88,15 +89,8 @@ for arg do
   esac
 done
 
-if ! startswith "$1" "-"; then
-  case "$1" in
-    major|minor|patch )
-      INCREMENT="$1"; shift;
-      ;;
-  esac
-fi
 if ! startswith "$1" "-"; then TARGET_BRANCH="$1"; fi
-TARGET_BRANCH=${TARGET_BRANCH:-`git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2`}
+TARGET_BRANCH=${TARGET_BRANCH:-`git stats --long-current-branch`}
 
 LATEST_HASH=`git log --pretty=format:'%h' -n 1`
 
