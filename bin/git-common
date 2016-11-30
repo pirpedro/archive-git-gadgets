@@ -3,21 +3,32 @@
 source $(git stats --script-location $0)/sh-common
 source $(git --exec-path)/git-sh-setup
 
+parse_before_config(){
+    echo "$1" | sed 's/\//-/g'
+}
+
 gadgets_is_initialized(){
   $(git config --get-regexp gadgets >/dev/null 2>&1)
 }
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git config --get-regexp gadgets.$1 >/dev/null 2>&1)
+  $(git config --get-regexp gadgets.$(parse_before_config $1) >/dev/null 2>&1)
 }
 
 git_flow_is_initialized(){
   git_is_initialized flow
 }
 
-git_get(){ git config --get gadgets.$1; }
-git_set(){ git config $1 gadgets.$2 "$3"; }
+git_bump_is_initialized(){
+  git_is_initialized branch."$CURRENT_BRANCH".version
+}
+
+
+git_get(){ git config --get gadgets.$(parse_before_config $1); }
+git_set(){ git config $1 gadgets.$(parse_before_config $2) "$3"; }
+git_unset(){ git config --unset gadgets.$(parse_before_config $1); }
+git_unset_all(){ git config --unset-all gadgets.$(parse_before_config $1);}
 
 git_local_branch_exists(){
   [ -n "$1" ] || die "No branch name passed."
@@ -61,6 +72,7 @@ git_config_has_develop(){
 gadgets_load_settings(){
   export ORIGIN=$(git_get origin || echo origin)
   export MASTER_BRANCH=$(git_get branch.master)
+  export CURRENT_BRANCH=$(git stats --long-current-branch)
 }
 
 git_local_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/heads; }

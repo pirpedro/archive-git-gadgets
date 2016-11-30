@@ -44,37 +44,45 @@ USAGE=`cat << EOF
 
 EOF`
 
-source $(git stats --script-location $0)/git-common
-
-NOW="$(date +'%B %d, %Y')"
-
 VERSION_FILE=$(git stats --root-path)/.version
 CHANGELOG_FILE=$(git stats --root-path)/CHANGELOG.md
 TEMP_FILE=$(git stats --root-path)/tmpfile
+
+source $(git stats --script-location $0)/git-bump-common
+
+load_settings
+
+if [ "$1" == "init" ]; then
+  shift; initialize "$@";
+elif ! git_bump_is_initialized; then
+  die "Bump is not initialized. Please execute 'git bump init' to start setup."
+fi
+
+if [ "$1" == "untrack" ]; then shift; untrack_branch "$@"; fi
 
 for arg do
   shift
   case "$arg" in
     major|minor|patch) INCREMENT="$arg"; ;;
-    -c|commit) set_flag commit; ;;
-    --hotfix) set_flag hotfix; ;;
-    -i|--interactive) set_flag interactive; verbosity on; ;;
-    -p|--push) set_flag push; ;;
-    -r|--release) set_flag release; ;;
-    -R|--recursive) set_flag recursive; ;;
+    -c|commit) set_global_flag commit; ;;
+    --hotfix) set_global_flag hotfix; ;;
+    -i|--interactive) set_global_flag interactive; verbosity on; ;;
+    -p|--push) set_global_flag push; ;;
+    -r|--release) set_global_flag release; ;;
+    -R|--recursive) set_global_flag recursive; ;;
     -t|--tag)
       version=$(cat .version)
       if [[ `git tag -l "v$version"` ]]; then
           if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
             git tag -d $version
-            echo -e "${NOTICE_FLAG} Removing current tag."
+            note "Removing current tag."
           else
-            echo -e "${WARNING_FLAG} No changes made since last tag. Nothing to do."
+            note "No changes made since last tag. Nothing to do."
             exit;
           fi
       fi
       git_editor $CHANGELOG_FILE
-      echo -e "${NOTICE_FLAG} Creating new tag for version ${COLOR_WHITE}$version${COLOR_GREEN}."
+      note "Creating new tag for version __${version}__."
       git add $VERSION_FILE $CHANGELOG_FILE
       git tag -a -m "Tag version $version." "v$version"
       exit;
@@ -82,7 +90,7 @@ for arg do
     --version=*)
       PARAM_VERSION=${arg##--version=}
       if test -z $PARAM_VERSION; then
-        echo "You need to pass version number"; exit 1;
+        die "You need to pass version number"
       fi
       ;;
     *) set -- "$@" "$arg"; ;;
@@ -91,46 +99,18 @@ done
 
 if ! startswith "$1" "-"; then TARGET_BRANCH="$1"; fi
 TARGET_BRANCH=${TARGET_BRANCH:-`git stats --long-current-branch`}
-
 LATEST_HASH=`git log --pretty=format:'%h' -n 1`
 
-if [[ ! -f $VERSION_FILE ]]; then
-  if flag interactive; then
-    warn -f "Could not find a .version file."
-    ask_boolean "Do you want to create a version file and start from scratch?"
+check_version_file_exists
+check_change_log_file_exists
 
-  fi
-  if ! flag interactive || check_boolean "${ask_answer}"; then
-      echo "${PARAM_VERSION:-0.0.0}" > $VERSION_FILE
-      echo "" > $CHANGELOG_FILE
-      note -f "Created '.version' and 'CHANGELOG.md' files in project root."
-  else
-    exit 1;
-  fi
-fi
-
-BASE_STRING=`cat $VERSION_FILE`
-BASE_LIST=(`echo $BASE_STRING | tr '.' ' '`)
-V_MAJOR=${BASE_LIST[0]}
-V_MINOR=${BASE_LIST[1]}
-V_PATCH=${BASE_LIST[2]}
-note "Current version: __${BASE_STRING}__"
+OLD_VERSION=$(retrieve_current_version)
+note "Current version: __${OLD_VERSION}__"
 note "Latest commit hash: __${LATEST_HASH}__"
 
 if flag hotfix && [ -z $INCREMENT ]; then INCREMENT=patch; fi
-INCREMENT=${INCREMENT:-minor}
-case "$INCREMENT" in
-  major )
-    V_MAJOR=$((V_MAJOR + 1)); V_MINOR=0; V_PATCH=0;
-    ;;
-  minor )
-    V_MINOR=$((V_MINOR + 1)); V_PATCH=0;
-    ;;
-  patch )
-    V_PATCH=$((V_PATCH + 1));
-    ;;
-esac
-SUGGESTED_VERSION="${PARAM_VERSION:-$V_MAJOR.$V_MINOR.$V_PATCH}"
+
+SUGGESTED_VERSION="${PARAM_VERSION:-`suggest_version_number "$INCREMENT"`}"
 
 if flag interactive; then
   ask --question="Enter a version number" --default="$SUGGESTED_VERSION" --free-answer
@@ -142,17 +122,17 @@ if flag interactive && ! flag hotfix && ! flag release; then
   ask --question="Create new branch?" --options="no,release,hotfix" --default="no"
   case "${ask_answer}" in
     hotfix )
-      set_flag hotfix
+      set_global_flag hotfix
       ;;
     release )
-      set_flag release
+      set_global_flag release
       ;;
   esac
 fi
 if flag hotfix; then
-  NEW_BRANCH=hotfix/$SUGGESTED_VERSION
+  NEW_BRANCH=$(git_get bump.prefix.hotfix)$SUGGESTED_VERSION
 elif flag release; then
-  NEW_BRANCH=release/$SUGGESTED_VERSION
+  NEW_BRANCH=$(git_get bump.prefix.release)$SUGGESTED_VERSION
 fi
 
 if flag interactive && (flag hotfix  || flag release); then
@@ -165,34 +145,8 @@ if [[ ! -z "$NEW_BRANCH" ]]; then
 fi
 
 #handling the version number changes
-
-if ! flag recursive && flag interactive; then
-  ask_boolean "Recursively replace version number in project?"
-  if check_boolean "${ask_answer}"; then set_flag recursive; fi
-fi
-if flag recursive; then
-  git grep -lw "$BASE_STRING" -- `git rev-parse --show-toplevel` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$BASE_STRING/$SUGGESTED_VERSION/g" {}; git add {}"
-else
-  echo $SUGGESTED_VERSION > $VERSION_FILE
-  git add $VERSION_FILE
-fi
-
-echo "## $SUGGESTED_VERSION ($NOW)" > $TEMP_FILE
-if git_tag_exists "v$BASE_STRING"; then
-  git log --pretty=format:"  - %s" "v$BASE_STRING"...HEAD >> $TEMP_FILE
-else
-  git log --pretty=format:"  - %s" >> $TEMP_FILE
-fi
-echo "" >> $TEMP_FILE
-echo "" >> $TEMP_FILE
-cat $CHANGELOG_FILE >> $TEMP_FILE
-mv $TEMP_FILE $CHANGELOG_FILE
-if flag interactive; then
-  note "Now you can make adjustments to __CHANGELOG.md__. Then press enter to continue."
-  git_editor $CHANGELOG_FILE
-fi
-
-git add $CHANGELOG_FILE
+bump_version_number ${$SUGGESTED_VERSION}
+bump_changelog $SUGGESTED_VERSION $BASE_STRING
 
 if flag interactive && ! flag commit; then
   ask_boolean "Commit and create tag to branch?"
