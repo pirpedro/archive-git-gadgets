@@ -76,9 +76,8 @@ bump_changelog(){
   cat $CHANGELOG_FILE >> $TEMP_FILE
   mv $TEMP_FILE $CHANGELOG_FILE
   if flag interactive; then
-    note "Now you can make adjustments to __CHANGELOG.md__. Press enter to continue."
-    read
-    git_editor $CHANGELOG_FILE
+    ask_boolean "Now you can make adjustments to __CHANGELOG.md__. Do you want? " "${FLAG_FALSE}"
+    ! check_boolean ${ask_answer} || git_editor $CHANGELOG_FILE
   fi
   git add $CHANGELOG_FILE
 }
