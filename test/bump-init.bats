@@ -22,6 +22,10 @@ foca
 y # use hotfix branch
 foquinha
 EOF
+
+  assert [ -e .version ]
+  assert [ -e CHANGELOG.md && -s CHANGELOG.md ]
+  assert_equal $(cat .version) '0.1.0'
 }
 
 @test "[Bump] Run default command before init" {

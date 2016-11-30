@@ -97,7 +97,7 @@ check_version_file_exists(){
     fi
 
     set_flag version_not_present;
-    echo "" > $VERSION_FILE;
+    touch $VERSION_FILE;
     note "Created empty __.version__ file in project root.";
   fi
 
@@ -119,10 +119,10 @@ bump_version_number(){
   fi
   current_version=$(cat $VERSION_FILE)
   current_version=${current_version:-$(retrieve_current_version)}
-
+  echo $current_version
   if check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
 
-  if empty $VERSION_FILE; then
+  if empty "$VERSION_FILE"; then
     echo $new_version > $VERSION_FILE
     git add $VERSION_FILE
   fi
