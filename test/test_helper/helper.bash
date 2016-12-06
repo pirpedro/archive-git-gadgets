@@ -71,7 +71,11 @@ assert_git_bump_config(){
   assert [ -e .version ]
   assert [ -e CHANGELOG.md && -s CHANGELOG.md ]
   assert_equal $(cat .version) $version
-  assert_git_config_present branch.master.recursive $recursive
+  if [ "$recursive" == true ]; then
+    assert_git_config_present branch.master.recursive $recursive
+  else
+    assert_git_config_not_present branch.master.recursive
+  fi
   assert_git_config_present branch.master.version $version
   assert_git_config_present bump.prefix.tag $tag
   if [ -n "$release" ]; then

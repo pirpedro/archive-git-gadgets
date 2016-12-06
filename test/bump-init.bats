@@ -18,7 +18,7 @@ setup(){
   #[ "${lines[0]}" = "Bump is not initialized. Please execute 'git bump init' to start setup." ]
 }
 
-@test "[Bump] Don't accept to create new version file. " {
+@test "[Bump] Init - Don't accept to create new version file. " {
   run git bump init <<EOF
 n
 EOF

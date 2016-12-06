@@ -119,7 +119,6 @@ bump_version_number(){
   fi
   current_version=$(cat $VERSION_FILE)
   current_version=${current_version:-$(retrieve_current_version)}
-  echo $current_version
   if check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
 
   if empty "$VERSION_FILE"; then
@@ -128,7 +127,7 @@ bump_version_number(){
   fi
 
   if git_get branch."$CURRENT_BRANCH".recursive >/dev/null 2>&1; then
-    set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
+  set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
   fi
 
   if ! flag recursive && flag interactive; then
