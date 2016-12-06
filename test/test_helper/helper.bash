@@ -16,3 +16,86 @@ load_lib() {
 
 load_lib bats-support
 load_lib bats-assert
+
+assert_empty(){
+  if [[ -n $1 ]]; then
+      batslib_print_kv_single 5 'Value' "$1" \
+      | batslib_decorate 'value not empty' \
+      | fail
+  fi
+}
+
+assert_not_empty(){
+  if [[ ! -n "$1" ]]; then
+      batslib_print_kv_single 8 'Variable' "empty" \
+      | batslib_decorate 'value is empty' \
+      | fail
+  fi
+}
+
+assert_git_config_present(){
+  assert_not_empty "$1"
+  assert_not_empty "$2"
+  if ! git config --get gadgets."$1">/dev/null 2>&1 ||
+  [ $(git config --get gadgets."$1") != "$2" ]; then
+    batslib_print_kv_single_or_multi 8 \
+        'expected' "$2" \
+        'actual'   "$(git config --get gadgets."$1" 2>&1)" \
+      | batslib_decorate 'config values do not equal' \
+      | fail
+  fi
+}
+
+assert_git_config_not_present(){
+  assert_not_empty "$1"
+  if git config --get gadgets."$1">/dev/null 2>&1 &&
+  [ -n $(git config --get gadgets."$1") ]; then
+    batslib_print_kv_single 5 'Value' "$(git config --get gadgets."$1" 2>&1)" \
+    | batslib_decorate 'git config not empty' \
+    | fail
+  fi
+}
+
+assert_git_bump_config(){
+  local version recursive tag release hotfix
+  recursive=true; tag="v"; release="release/"; hotfix="hotfix/"
+  for option in $(echo "$1" | tr "," "\n"); do
+    case "$option" in
+      version=* ) version=${option##version=}; ;;
+      recursive=* ) recursive=${option##recursive=}; ;;
+      tag=* ) tag=${option##tag=}; ;;
+      release=* ) release=${option##release=}; ;;
+      hotfix=* ) hotfix=${option##hotfix=}; ;;
+    esac
+  done
+  assert [ -e .version ]
+  assert [ -e CHANGELOG.md && -s CHANGELOG.md ]
+  assert_equal $(cat .version) $version
+  assert_git_config_present branch.master.recursive $recursive
+  assert_git_config_present branch.master.version $version
+  assert_git_config_present bump.prefix.tag $tag
+  if [ -n "$release" ]; then
+    assert_git_config_present bump.prefix.release $release
+  else
+    assert_git_config_not_present bump.prefix.release
+  fi
+
+  if [ -n "$hotfix" ]; then
+    assert_git_config_present bump.prefix.hotfix $hotfix
+  else
+    assert_git_config_not_present bump.prefix.hotfix
+  fi
+}
+
+git_bump_init(){
+  git bump init <<EOF
+y # create new .version file
+y # recursively replace
+\n #change changelog.md
+
+y # use release branch
+
+y # use hotfix branch
+
+EOF
+}
