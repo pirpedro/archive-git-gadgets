@@ -19,9 +19,7 @@ setup(){
 }
 
 @test "[Bump] Init - Don't accept to create new version file. " {
-  run git bump init <<EOF
-n
-EOF
+  run git bump init <<< $'master\nn\n'
   assert_failure
 }
 
@@ -31,17 +29,17 @@ EOF
 }
 
 @test "[Bump] Init - clean repo - default flag" {
-  run git bump init --defaults
+  run git bump init --defaults <<< $'master\n'
   assert_git_bump_config version=0.1.0
 }
 
 @test "[Bump] Init - clean repo - custom values" {
-  run git bump init <<< $'y\nn\n\ncustom-tag\ny\ncustom-release\ny\ncustom-hotfix'
+  run git bump init <<< $'master\ny\nn\n\ncustom-tag\ny\ncustom-release\ny\ncustom-hotfix'
   assert_git_bump_config version=0.1.0,recursive=false,tag=custom-tag,release=custom-release,hotfix=custom-hotfix
 
 }
 
 @test "[Bump] Init - clean repo - no prefixes" {
-  run git bump init <<< $'y\ny\n\n\nn\nn\n'
+  run git bump init <<< $'master\ny\ny\n\n\nn\nn\n'
   assert_git_bump_config version=0.1.0,release=,hotfix=
 }

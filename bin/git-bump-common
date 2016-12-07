@@ -138,7 +138,7 @@ bump_version_number(){
       set_global_flag recursive
     fi
   fi
-  
+
   if flag recursive; then
     git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git add {}"
     git_set --local branch."$CURRENT_BRANCH".recursive "true"
@@ -196,12 +196,15 @@ initialize(){
     verbosity on
   fi
 
-
   if git_bump_is_initialized && ! flag force; then
     warn -f "Git bump is already initialized."
     warn -f "Use 'git bump init -f' to force reinitialization."
     exit 0
   fi
+
+  #Initialize git gadgets if necessary.
+  gadgets_is_initialized || gadgets_init
+
 
   current_version=$(retrieve_current_version)
   if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then

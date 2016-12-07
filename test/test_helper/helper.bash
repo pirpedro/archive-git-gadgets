@@ -56,9 +56,23 @@ assert_git_config_not_present(){
   fi
 }
 
+assert_git_gadgets_config(){
+  local master_branch
+  master_branch="master"
+  for option in $(echo "$1" | tr "," "\n"); do
+    case "$option" in
+      master=* ) master_branch=${option##master=}; ;;
+    esac
+  done
+
+  assert_git_config_present core.master $master_branch
+}
+
 assert_git_bump_config(){
   local version recursive tag release hotfix
   recursive=true; tag="v"; release="release/"; hotfix="hotfix/"
+
+  assert_git_gadgets_config
   for option in $(echo "$1" | tr "," "\n"); do
     case "$option" in
       version=* ) version=${option##version=}; ;;
@@ -93,6 +107,7 @@ assert_git_bump_config(){
 
 git_bump_init(){
   git bump init <<EOF
+
 y # create new .version file
 y # recursively replace
 \n #change changelog.md
