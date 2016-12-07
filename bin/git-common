@@ -7,13 +7,18 @@ parse_before_config(){
     echo "$1" | sed 's/\//-/g'
 }
 
+git_get(){ git config --get --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
+git_set(){ git config --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) "$2"; }
+git_unset(){ git config --unset --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
+git_unset_all(){ git config --unset-all $(git stats --root-path)/.gadgets/config $(parse_before_config $1);}
+
 gadgets_is_initialized(){
-  $(git config --get gadgets.core.master >/dev/null 2>&1)
+  $(git_get core.master >/dev/null 2>&1)
 }
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git config --get-regexp gadgets.$(parse_before_config $1) >/dev/null 2>&1)
+  $(git_get --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
 }
 
 git_flow_is_initialized(){
@@ -23,12 +28,6 @@ git_flow_is_initialized(){
 git_bump_is_initialized(){
   git_is_initialized branch."$CURRENT_BRANCH".version
 }
-
-
-git_get(){ git config --get gadgets.$(parse_before_config $1); }
-git_set(){ git config $1 gadgets.$(parse_before_config $2) "$3"; }
-git_unset(){ git config --unset gadgets.$(parse_before_config $1); }
-git_unset_all(){ git config --unset-all gadgets.$(parse_before_config $1);}
 
 git_local_branch_exists(){
   [ -n "$1" ] || die "No branch name passed."
@@ -96,6 +95,11 @@ gadgets_init(){
     exit 0
   fi
 
+  local root_path
+  root_path=$(git stats --root-path)
+  [ -d $root_path/.gadgets ] || mkdir $root_path/.gadgets
+  [ -e $root_path/.gadgets/config ] || touch $root_path/.gadgets/config
+
   if git_config_has_master && ! flag force; then
     master=$(git_get core.master)
   else
@@ -127,7 +131,7 @@ gadgets_init(){
     die "Local branch $master not found."
   fi
 
-  git_set --local core.master "$master"
+  git_set core.master "$master"
 
   if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
     git symbolic-ref HEAD "refs/heads/$master"

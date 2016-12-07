@@ -36,11 +36,13 @@ assert_not_empty(){
 assert_git_config_present(){
   assert_not_empty "$1"
   assert_not_empty "$2"
-  if ! git config --get gadgets."$1">/dev/null 2>&1 ||
-  [ $(git config --get gadgets."$1") != "$2" ]; then
+  local config_path
+  config_path=$(git stats --root-path)/.gadgets/config
+  if ! git config --get --file $config_path "$1">/dev/null 2>&1 ||
+  [ $(git config --get --file $config_path "$1") != "$2" ]; then
     batslib_print_kv_single_or_multi 8 \
         'expected' "$2" \
-        'actual'   "$(git config --get gadgets."$1" 2>&1)" \
+        'actual'   "$(git config --get --file $config_path "$1" 2>&1)" \
       | batslib_decorate 'config values do not equal' \
       | fail
   fi
@@ -48,9 +50,11 @@ assert_git_config_present(){
 
 assert_git_config_not_present(){
   assert_not_empty "$1"
-  if git config --get gadgets."$1">/dev/null 2>&1 &&
-  [ $(git config --get gadgets."$1") != "" ]; then
-    batslib_print_kv_single 5 'Value' "$(git config --get gadgets."$1" 2>&1)" \
+  local config_path
+  config_path=$(git stats --root-path)/.gadgets/config
+  if git config --get --file $config_path "$1">/dev/null 2>&1 &&
+  [ $(git config --get  --file $config_path "$1") != "" ]; then
+    batslib_print_kv_single 5 'Value' "$(git config --get --file $config_path "$1" 2>&1)" \
     | batslib_decorate 'git config not empty' \
     | fail
   fi

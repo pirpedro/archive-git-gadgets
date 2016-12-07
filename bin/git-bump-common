@@ -141,14 +141,14 @@ bump_version_number(){
 
   if flag recursive; then
     git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git add {}"
-    git_set --local branch."$CURRENT_BRANCH".recursive "true"
+    git_set branch."$CURRENT_BRANCH".recursive "true"
   else
     echo $new_version > $VERSION_FILE
     git add $VERSION_FILE
-    git_set --local branch."$CURRENT_BRANCH".recursive "false"
+    git_set branch."$CURRENT_BRANCH".recursive "false"
   fi
 
-  git_set --local branch."$CURRENT_BRANCH".version "$new_version"
+  git_set branch."$CURRENT_BRANCH".version "$new_version"
   note "Set version number to __${new_version}__."
 }
 
@@ -225,7 +225,7 @@ initialize(){
     prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
     ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
     ! flag interactive || prefix_suggestion="${ask_answer}"
-    git_set --local bump.prefix.tag "$prefix_suggestion"
+    git_set bump.prefix.tag "$prefix_suggestion"
   fi
 
   if git_flow_is_initialized && (! git config --get-regex bump.prefix >/dev/null 2>&1 || flag force); then
@@ -233,7 +233,7 @@ initialize(){
     if ! flag interactive || check_boolean ${ask_answer}; then
       for prefix in 'release' 'hotfix'; do
         prefix_suggestion=$(git_get flow.prefix."$prefix")
-        git_set --local bump.prefix."$prefix" "${prefix_suggestion}"
+        git_set bump.prefix."$prefix" "${prefix_suggestion}"
       done
     fi
   else
@@ -244,9 +244,9 @@ initialize(){
         if ! flag interactive || check_boolean "$ask_answer"; then
           ! flag interactive || ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
           ! flag interactive || prefix_suggestion="${ask_answer}"
-          git_set --local bump.prefix."$prefix" "$prefix_suggestion"
+          git_set bump.prefix."$prefix" "$prefix_suggestion"
         else
-          git_set --local bump.prefix."$prefix" ""
+          git_set bump.prefix."$prefix" ""
         fi
       fi
     done
