@@ -127,20 +127,25 @@ bump_version_number(){
   fi
 
   if git_get branch."$CURRENT_BRANCH".recursive >/dev/null 2>&1; then
-  set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
+    set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
   fi
 
-  if ! flag recursive && flag interactive; then
-    ask_boolean "Recursively replace version number in branch?"
-    set_global_flag recursive $(check_boolean "${ask_answer}")
+  if ! flag recursive; then
+    ! flag interactive || ask_boolean "Recursively replace version number in branch?"
+    if flag interactive; then
+      set_global_flag recursive ${ask_answer}
+    else
+      set_global_flag recursive
+    fi
   fi
+  
   if flag recursive; then
     git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git add {}"
     git_set --local branch."$CURRENT_BRANCH".recursive "true"
   else
     echo $new_version > $VERSION_FILE
     git add $VERSION_FILE
-    git_set --local --bool branch."$CURRENT_BRANCH".recursive "false"
+    git_set --local branch."$CURRENT_BRANCH".recursive "false"
   fi
 
   git_set --local branch."$CURRENT_BRANCH".version "$new_version"
@@ -173,8 +178,6 @@ check_changelog_file_exists(){
 }
 
 initialize(){
-  set_global_flag interactive
-  verbosity on
   local suggested_version current_version
   git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
 
@@ -182,11 +185,17 @@ initialize(){
   for arg do
     shift
     case "$arg" in
+      --defaults) set_global_flag defaults; ;;
       -f|--force) set_global_flag force; ;;
       --version=*) new_version="${arg##--version=}"; ;;
       *) set -- "$@" "$arg"; ;;
     esac
   done
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
 
   if git_bump_is_initialized && ! flag force; then
     warn -f "Git bump is already initialized."
@@ -196,8 +205,8 @@ initialize(){
 
   current_version=$(retrieve_current_version)
   if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then
-    ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
-    check_boolean ${ask_answer} || exit 0;
+    ! flag interactive || ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
+    ! flag interactive || check_boolean ${ask_answer} || exit 0;
   fi
 
   suggested_version="${new_version:-`retrieve_current_version || echo '0.1.0'`}"
@@ -211,34 +220,30 @@ initialize(){
 
   if ! git_get bump.prefix.tag >/dev/null 2>&1 || flag force; then
     prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
-    ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
-    git_set --local bump.prefix.tag "${ask_answer}"
-  else
-    git_unset bump.prefix.tag
+    ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
+    ! flag interactive || prefix_suggestion="${ask_answer}"
+    git_set --local bump.prefix.tag "$prefix_suggestion"
   fi
 
   if git_flow_is_initialized && (! git config --get-regex bump.prefix >/dev/null 2>&1 || flag force); then
-    ask_boolean "Do you want to use gitflow prefixes?"
-    if check_boolean ${ask_answer}; then
+    ! flag interactive || ask_boolean "Do you want to use gitflow prefixes?"
+    if ! flag interactive || check_boolean ${ask_answer}; then
       for prefix in 'release' 'hotfix'; do
         prefix_suggestion=$(git_get flow.prefix."$prefix")
-        if ! empty "#{prefix_suggestion}"; then
-          git_set --local bump.prefix."$prefix" "${prefix_suggestion}"
-        else
-          git_unset bump.prefix."$prefix"
-        fi
+        git_set --local bump.prefix."$prefix" "${prefix_suggestion}"
       done
     fi
   else
     for prefix in 'release' 'hotfix'; do
       if ! git_get bump.prefix."$prefix" >/dev/null 2>&1 || flag force; then
         prefix_suggestion=$(git_get bump.prefix."$prefix" || echo "$prefix/")
-        ask_boolean "Do you want to use prefix for future $prefix branches"
-        if check_boolean "$ask_answer"; then
-          ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
-          git_set --local bump.prefix."$prefix" "${ask_answer}"
+        ! flag interactive || ask_boolean "Do you want to use prefix for future $prefix branches"
+        if ! flag interactive || check_boolean "$ask_answer"; then
+          ! flag interactive || ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
+          ! flag interactive || prefix_suggestion="${ask_answer}"
+          git_set --local bump.prefix."$prefix" "$prefix_suggestion"
         else
-          git_unset bump.prefix."$prefix"
+          git_set --local bump.prefix."$prefix" ""
         fi
       fi
     done

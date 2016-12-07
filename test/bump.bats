@@ -10,7 +10,3 @@ setup(){
   [ ! -f CHANGELOG.md ] || rm -f CHANGELOG.md
   git add foca && git commit -m "First commit"
 }
-
-@test "[Bump]" {
-  
-}

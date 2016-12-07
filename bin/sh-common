@@ -58,8 +58,8 @@ empty(){
 
 check_boolean(){
   case "$1" in
-    [yY] | [yY][eE][sS] | [oO][nN] | ${FLAG_TRUE} ) echo ${FLAG_TRUE}; return ${FLAG_TRUE} ; ;;
-    [nN] | [nN][oO] | [oO][fF][fF] | ${FLAG_FALSE} ) echo ${FLAG_FALSE}; return ${FLAG_FALSE}; ;;
+    [yY] | [yY][eE][sS] | [oO][nN] | ${FLAG_TRUE} ) return ${FLAG_TRUE} ; ;;
+    [nN] | [nN][oO] | [oO][fF][fF] | ${FLAG_FALSE} ) return ${FLAG_FALSE}; ;;
     [*] ) return ${FLAG_ERROR}; ;;
   esac
 }

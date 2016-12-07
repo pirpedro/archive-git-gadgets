@@ -30,6 +30,11 @@ EOF
   assert_git_bump_config version=0.1.0
 }
 
+@test "[Bump] Init - clean repo - default flag" {
+  run git bump init --defaults
+  assert_git_bump_config version=0.1.0
+}
+
 @test "[Bump] Init - clean repo - custom values" {
   run git bump init <<< $'y\nn\n\ncustom-tag\ny\ncustom-release\ny\ncustom-hotfix'
   assert_git_bump_config version=0.1.0,recursive=false,tag=custom-tag,release=custom-release,hotfix=custom-hotfix

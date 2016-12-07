@@ -49,7 +49,7 @@ assert_git_config_present(){
 assert_git_config_not_present(){
   assert_not_empty "$1"
   if git config --get gadgets."$1">/dev/null 2>&1 &&
-  [ -n $(git config --get gadgets."$1") ]; then
+  [ $(git config --get gadgets."$1") != "" ]; then
     batslib_print_kv_single 5 'Value' "$(git config --get gadgets."$1" 2>&1)" \
     | batslib_decorate 'git config not empty' \
     | fail
@@ -74,7 +74,7 @@ assert_git_bump_config(){
   if [ "$recursive" == true ]; then
     assert_git_config_present branch.master.recursive $recursive
   else
-    assert_git_config_not_present branch.master.recursive
+    assert_git_config_present branch.master.recursive false
   fi
   assert_git_config_present branch.master.version $version
   assert_git_config_present bump.prefix.tag $tag
