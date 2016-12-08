@@ -3,21 +3,31 @@
 source $(git stats --script-location $0)/sh-common
 source $(git --exec-path)/git-sh-setup
 
+parse_before_config(){
+    echo "$1" | sed 's/\//-/g'
+}
+
+git_get(){ git config --get --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
+git_set(){ git config --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) "$2"; }
+git_unset(){ git config --unset --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
+git_unset_all(){ git config --unset-all $(git stats --root-path)/.gadgets/config $(parse_before_config $1);}
+
 gadgets_is_initialized(){
-  $(git config --get-regexp gadgets >/dev/null 2>&1)
+  $(git_get core.master >/dev/null 2>&1)
 }
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git config --get-regexp gadgets.$1 >/dev/null 2>&1)
+  $(git_get --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
 }
 
 git_flow_is_initialized(){
   git_is_initialized flow
 }
 
-git_get(){ git config --get gadgets.$1; }
-git_set(){ git config $1 gadgets.$2 "$3"; }
+git_bump_is_initialized(){
+  git_is_initialized branch."$CURRENT_BRANCH".version
+}
 
 git_local_branch_exists(){
   [ -n "$1" ] || die "No branch name passed."
@@ -49,7 +59,7 @@ git_remote_branch_delete(){
 }
 
 git_config_has_master(){
-  local master=$(git_get branch.master)
+  local master=$(git_get core.master)
   [ "$master" != "" ] && git_local_branch_exists "$master"
 }
 
@@ -59,8 +69,9 @@ git_config_has_develop(){
 }
 
 gadgets_load_settings(){
-  export ORIGIN=$(git_get origin || echo origin)
-  export MASTER_BRANCH=$(git_get branch.master)
+  export ORIGIN=$(git_get core.origin || echo origin)
+  export MASTER_BRANCH=$(git_get core.master)
+  export CURRENT_BRANCH=$(git stats --long-current-branch)
 }
 
 git_local_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/heads; }
@@ -84,18 +95,23 @@ gadgets_init(){
     exit 0
   fi
 
+  local root_path
+  root_path=$(git stats --root-path)
+  [ -d $root_path/.gadgets ] || mkdir $root_path/.gadgets
+  [ -e $root_path/.gadgets/config ] || touch $root_path/.gadgets/config
+
   if git_config_has_master && ! flag force; then
-    master=$(git_get branch.master)
+    master=$(git_get core.master)
   else
     branch_count=$(git_local_branches | wc -l)
     if [ "$branch_count" -eq 0 ]; then
       note -f "No branches exists. We need to create it."
-      suggestion=$(git_get branch.master || echo master)
+      suggestion=$(git_get core.master || echo master)
     else
       note -f "You have these branchs:"
       git_local_branches | sed 's/^.*$/   - &/g'
       suggestion=
-			for mybranch in $(git_get branch.master) 'production' 'main' 'master'; do
+			for mybranch in $(git_get core.master) 'production' 'main' 'master'; do
 				if git_local_branch_exists "$mybranch"; then
 					suggestion="$mybranch"
 					break
@@ -115,7 +131,7 @@ gadgets_init(){
     die "Local branch $master not found."
   fi
 
-  git_set --local branch.master "$master"
+  git_set core.master "$master"
 
   if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
     git symbolic-ref HEAD "refs/heads/$master"

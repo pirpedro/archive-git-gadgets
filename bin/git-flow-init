@@ -32,7 +32,7 @@ default(){
   fi
 
   local master_branch develop branch_count suggestion
-  master_branch=$(git_get branch.master)
+  master_branch=$(git_get core.master)
 if git_config_has_develop && ! flag force; then
     develop=$(git_get flow.branch.develop)
   else
@@ -59,7 +59,7 @@ if git_config_has_develop && ! flag force; then
     die "Master and develop branch must differ."
   fi
 
-  git_set $config_scope flow.branch.develop "$develop"
+  git_set flow.branch.develop "$develop"
 
   local created_develop=${FLAG_FALSE}
   if ! git_local_branch_exists "$develop"; then
@@ -82,9 +82,9 @@ if git_config_has_develop && ! flag force; then
       ask_boolean "Do you want to use $prefix branches"
       if check_boolean "$ask_answer"; then
         ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
-        git_set $config_scope flow.prefix."$prefix" "${ask_answer}"
+        git_set flow.prefix."$prefix" "${ask_answer}"
       else
-        git_set $config_scope flow.prefix."$prefix"
+        git_set flow.prefix."$prefix"
       fi
     fi
   done

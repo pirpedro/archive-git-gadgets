@@ -39,7 +39,7 @@ if [[ -e $FLOW_FILE ]]; then
   fi
 
   if ! git_flow_is_initialized && [ "$flow" != "init" ]; then
-    die "Flow is not initalized. Please execute 'git flow init' to start setup."
+    die "Flow is not initialized. Please execute 'git flow init' to start setup."
   fi
   #Run flow
   . $FLOW_FILE

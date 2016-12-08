@@ -39,11 +39,21 @@ NOTE_FLAG="${note_color}❯"
 #string matchings
 startswith() { [ "$1" != "${1#$2}" ]; }
 endswith() { [ "$1" != "${1%$2}" ]; }
+equals() { [ "$1" == "$2" ]; }
 contains() {
   case "$1" in
     *$2* ) return ${FLAG_TRUE}; ;;
     * ) return ${FLAG_FALSE}; ;;
   esac
+}
+
+#check if a file or a variable is empty
+empty(){
+  if [ -f "$1" ]; then
+    [ ! -s "$1" ]
+  else
+    [ -z "$1" ]
+  fi
 }
 
 check_boolean(){
@@ -70,7 +80,7 @@ log(){
       *) set -- "$@" "$arg" ;;
     esac
   done
-  flag verbosity && test -z "$force" || echo "$@";
+  ! flag verbosity && test -z "$force" || echo "$@";
 }
 
 #
@@ -202,7 +212,23 @@ location(){
   esac
 }
 
-set_flag(){ eval "FLAG_$1=${FLAG_TRUE}"; }
-set_global_flag(){ export "FLAG_$1=${FLAG_TRUE}"; }
 flag(){ local varname="FLAG_$1"; [ "${!varname}" == "${FLAG_TRUE}" ]; }
 unset_flag(){ unset "FLAG_$1"; }
+set_flag(){
+  local flag
+  flag=${2:-$FLAG_TRUE}
+  if check_boolean "$flag"; then
+    eval "FLAG_$1=$FLAG_TRUE";
+  else
+    unset_flag "$1"
+  fi
+}
+set_global_flag(){
+  local flag
+  flag=${2:-${FLAG_TRUE}}
+  if check_boolean "${flag}"; then
+    export "FLAG_$1=${FLAG_TRUE}";
+  else
+    unset_flag "$1"
+  fi
+}

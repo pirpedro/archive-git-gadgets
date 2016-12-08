@@ -1,0 +1,263 @@
+#!/bin/bash
+
+source $(git stats --script-location $0)/git-common
+
+NOW="$(date +'%B %d, %Y')"
+
+retrieve_current_version(){
+  git_get branch."$CURRENT_BRANCH".version || ( [ -f "$VERSION_FILE" ] && cat "$VERSION_FILE")
+}
+
+load_settings(){
+  gadgets_load_settings
+  export CURRENT_VERSION=$(retrieve_current_version)
+}
+
+get_tagname(){
+  [ -n "$1" ] || die "Parameter need to be passed."
+  echo "$(git_get bump.prefix.tag)$1"
+}
+
+bump_tag_exists(){
+  [ -n "$1" ] || die "Parameter need to be passed."
+  local tag_name
+  tag_name=$(get_tagname "$1")
+  git_tag_exists $tag_name
+}
+
+suggest_version_number(){
+  local version_number version_number_split v_major v_minor v_patch increment_type
+  version_number=$(retrieve_current_version)
+  version_number_split=(`echo ${version_number} | tr '.' ' '`)
+  v_major=${version_number_split[0]}
+  v_minor=${version_number_split[1]}
+  v_patch=${version_number_split[2]}
+
+  increment_type=${1:-minor}
+  case "$increment_type" in
+    major )
+      v_major=$((v_major + 1)); v_minor=0; v_patch=0;
+      ;;
+    minor )
+      v_minor=$((v_minor + 1)); v_patch=0;
+      ;;
+    patch )
+      v_patch=$((v_patch + 1));
+      ;;
+  esac
+  echo "$V_MAJOR.$V_MINOR.$V_PATCH"
+}
+
+# Organize commit changes in CHANGELOG.md
+# bump_changelog <new_version> [old_version]
+bump_changelog(){
+  local new_version old_version from to
+  if [ "$#" -eq 2 ]; then
+    new_version="$1"
+    old_version="$2"
+  elif [ "$#" -eq 1 ]; then
+    new_version="$1"
+  else
+    die "You need to pass at least the new version number."
+  fi
+
+  echo "## $new_version ($NOW)" > $TEMP_FILE
+  if ! empty $old_version && bump_tag_exists $old_version; then
+    from="$(get_tagname $old_version)..."
+  fi
+  if ! empty $new_version && bump_tag_exists $new_version; then
+    to="$(get_tagname $new_version)"
+  else
+    to="HEAD"
+  fi
+  git log --pretty=format:"  - %s" "$from$to" >> $TEMP_FILE
+  echo "" >> $TEMP_FILE
+  echo "" >> $TEMP_FILE
+  cat $CHANGELOG_FILE >> $TEMP_FILE
+  mv $TEMP_FILE $CHANGELOG_FILE
+  if flag interactive; then
+    ask_boolean "Now you can make adjustments to __CHANGELOG.md__. Do you want? " "${FLAG_FALSE}"
+    ! check_boolean ${ask_answer} || git_editor $CHANGELOG_FILE
+  fi
+  git add $CHANGELOG_FILE
+}
+
+#Check if version file exists. If not create it.
+#If version number parameter passed, check if version number is present in file.
+#Usage:
+# check_version_file_exists [version_number]
+check_version_file_exists(){
+  local check_version current_version
+  check_version="$1"
+  if [ ! -f $VERSION_FILE ]; then
+    if flag interactive; then
+      warn "Could not find a .version file."
+      ask_boolean "Do you want to create a version file and start from scratch?"
+      if ! check_boolean "${ask_answer}"; then exit 1; fi
+    fi
+
+    set_flag version_not_present;
+    touch $VERSION_FILE;
+    note "Created empty __.version__ file in project root.";
+  fi
+
+  current_version=$(cat $VERSION_FILE)
+
+  if empty "$current_version" || (! empty "$check_version" && ! equals "$check_version" "$current_version"); then
+    set_flag version_not_present
+  fi
+  return_value=$(! flag version_not_present)
+  return $return_value
+}
+
+bump_version_number(){
+  local new_version current_version
+  if [ "$#" -eq 1 ]; then
+    new_version="$1"
+  else
+    die "Need to pass parameter."
+  fi
+  current_version=$(cat $VERSION_FILE)
+  current_version=${current_version:-$(retrieve_current_version)}
+  if check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
+
+  if empty "$VERSION_FILE"; then
+    echo $new_version > $VERSION_FILE
+    git add $VERSION_FILE
+  fi
+
+  if git_get branch."$CURRENT_BRANCH".recursive >/dev/null 2>&1; then
+    set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
+  fi
+
+  if ! flag recursive; then
+    ! flag interactive || ask_boolean "Recursively replace version number in branch?"
+    if flag interactive; then
+      set_global_flag recursive ${ask_answer}
+    else
+      set_global_flag recursive
+    fi
+  fi
+
+  if flag recursive; then
+    git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git add {}"
+    git_set branch."$CURRENT_BRANCH".recursive "true"
+  else
+    echo $new_version > $VERSION_FILE
+    git add $VERSION_FILE
+    git_set branch."$CURRENT_BRANCH".recursive "false"
+  fi
+
+  git_set branch."$CURRENT_BRANCH".version "$new_version"
+  note "Set version number to __${new_version}__."
+}
+
+reset_changelog_file(){
+    local reset
+    reset=$FLAG_TRUE
+    if check_changelog_file_exists && flag interactive; then
+      ask_boolean "CHANGELOG.md file already exist. Reset it?"
+      reset=${ask_answer}
+    fi
+    if check_boolean "$reset"; then
+      truncate -s 0 $CHANGELOG_FILE
+      bump_changelog ${1:-`retrieve_current_version`}
+    fi
+}
+
+check_changelog_file_exists(){
+  if [ ! -f $CHANGELOG_FILE ]; then
+    echo "" > $CHANGELOG_FILE
+    note "Created 'CHANGELOG.md' file in project root."
+    return 1
+  elif empty $CHANGELOG_FILE; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+initialize(){
+  local suggested_version current_version
+  git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
+
+  local prefix_suggestion new_version
+  for arg do
+    shift
+    case "$arg" in
+      --defaults) set_global_flag defaults; ;;
+      -f|--force) set_global_flag force; ;;
+      --version=*) new_version="${arg##--version=}"; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
+  if git_bump_is_initialized && ! flag force; then
+    warn -f "Git bump is already initialized."
+    warn -f "Use 'git bump init -f' to force reinitialization."
+    exit 0
+  fi
+
+  #Initialize git gadgets if necessary.
+  gadgets_is_initialized || gadgets_init
+
+
+  current_version=$(retrieve_current_version)
+  if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then
+    ! flag interactive || ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
+    ! flag interactive || check_boolean ${ask_answer} || exit 0;
+  fi
+
+  suggested_version="${new_version:-`retrieve_current_version || echo '0.1.0'`}"
+  if ! check_version_file_exists "$suggested_version"; then
+    bump_version_number "$suggested_version" && reset_changelog_file "$suggested_version"
+  elif ! check_changelog_file_exists; then
+    bump_changelog "$suggested_version"
+  fi
+
+  local prefix_suggestion
+
+  if ! git_get bump.prefix.tag >/dev/null 2>&1 || flag force; then
+    prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
+    ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
+    ! flag interactive || prefix_suggestion="${ask_answer}"
+    git_set bump.prefix.tag "$prefix_suggestion"
+  fi
+
+  if git_flow_is_initialized && (! git config --get-regex bump.prefix >/dev/null 2>&1 || flag force); then
+    ! flag interactive || ask_boolean "Do you want to use gitflow prefixes?"
+    if ! flag interactive || check_boolean ${ask_answer}; then
+      for prefix in 'release' 'hotfix'; do
+        prefix_suggestion=$(git_get flow.prefix."$prefix")
+        git_set bump.prefix."$prefix" "${prefix_suggestion}"
+      done
+    fi
+  else
+    for prefix in 'release' 'hotfix'; do
+      if ! git_get bump.prefix."$prefix" >/dev/null 2>&1 || flag force; then
+        prefix_suggestion=$(git_get bump.prefix."$prefix" || echo "$prefix/")
+        ! flag interactive || ask_boolean "Do you want to use prefix for future $prefix branches"
+        if ! flag interactive || check_boolean "$ask_answer"; then
+          ! flag interactive || ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
+          ! flag interactive || prefix_suggestion="${ask_answer}"
+          git_set bump.prefix."$prefix" "$prefix_suggestion"
+        else
+          git_set bump.prefix."$prefix" ""
+        fi
+      fi
+    done
+  fi
+
+  exit 0;
+}
+
+untrack_branch(){
+  local branch
+  branch=${1:-$CURRENT_BRANCH}
+  git_unset "$branch".version
+  exit 0
+}
