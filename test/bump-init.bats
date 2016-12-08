@@ -34,12 +34,12 @@ setup(){
 }
 
 @test "[Bump] Init - clean repo - custom values" {
-  run git bump init <<< $'master\ny\nn\n\ncustom-tag\ny\ncustom-release\ny\ncustom-hotfix'
-  assert_git_bump_config version=0.1.0,recursive=false,tag=custom-tag,release=custom-release,hotfix=custom-hotfix
+  run git bump init <<< $'master\ny\nn\n\ncustom-tag\n'
+  assert_git_bump_config version=0.1.0,recursive=false,tag=custom-tag
 
 }
 
 @test "[Bump] Init - clean repo - no prefixes" {
-  run git bump init <<< $'master\ny\ny\n\n\nn\nn\n'
-  assert_git_bump_config version=0.1.0,release=,hotfix=
+  run git bump init <<< $'master\ny\ny\n\n\n'
+  assert_git_bump_config version=0.1.0
 }

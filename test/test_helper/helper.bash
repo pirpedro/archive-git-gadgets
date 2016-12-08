@@ -73,8 +73,8 @@ assert_git_gadgets_config(){
 }
 
 assert_git_bump_config(){
-  local version recursive tag release hotfix
-  recursive=true; tag="v"; release="release/"; hotfix="hotfix/"
+  local version recursive tag
+  recursive=true; tag="v";
 
   assert_git_gadgets_config
   for option in $(echo "$1" | tr "," "\n"); do
@@ -82,8 +82,6 @@ assert_git_bump_config(){
       version=* ) version=${option##version=}; ;;
       recursive=* ) recursive=${option##recursive=}; ;;
       tag=* ) tag=${option##tag=}; ;;
-      release=* ) release=${option##release=}; ;;
-      hotfix=* ) hotfix=${option##hotfix=}; ;;
     esac
   done
   assert [ -e .version ]
@@ -96,17 +94,6 @@ assert_git_bump_config(){
   fi
   assert_git_config_present branch.master.version $version
   assert_git_config_present bump.prefix.tag $tag
-  if [ -n "$release" ]; then
-    assert_git_config_present bump.prefix.release $release
-  else
-    assert_git_config_not_present bump.prefix.release
-  fi
-
-  if [ -n "$hotfix" ]; then
-    assert_git_config_present bump.prefix.hotfix $hotfix
-  else
-    assert_git_config_not_present bump.prefix.hotfix
-  fi
 }
 
 git_bump_init(){
@@ -115,10 +102,6 @@ git_bump_init(){
 y # create new .version file
 y # recursively replace
 \n #change changelog.md
-
-y # use release branch
-
-y # use hotfix branch
 
 EOF
 }

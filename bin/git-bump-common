@@ -228,30 +228,7 @@ initialize(){
     git_set bump.prefix.tag "$prefix_suggestion"
   fi
 
-  if git_flow_is_initialized && (! git config --get-regex bump.prefix >/dev/null 2>&1 || flag force); then
-    ! flag interactive || ask_boolean "Do you want to use gitflow prefixes?"
-    if ! flag interactive || check_boolean ${ask_answer}; then
-      for prefix in 'release' 'hotfix'; do
-        prefix_suggestion=$(git_get flow.prefix."$prefix")
-        git_set bump.prefix."$prefix" "${prefix_suggestion}"
-      done
-    fi
-  else
-    for prefix in 'release' 'hotfix'; do
-      if ! git_get bump.prefix."$prefix" >/dev/null 2>&1 || flag force; then
-        prefix_suggestion=$(git_get bump.prefix."$prefix" || echo "$prefix/")
-        ! flag interactive || ask_boolean "Do you want to use prefix for future $prefix branches"
-        if ! flag interactive || check_boolean "$ask_answer"; then
-          ! flag interactive || ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
-          ! flag interactive || prefix_suggestion="${ask_answer}"
-          git_set bump.prefix."$prefix" "$prefix_suggestion"
-        else
-          git_set bump.prefix."$prefix" ""
-        fi
-      fi
-    done
-  fi
-
+  note "Git bump is now configured for branch $CURRENT_BRANCH. Enjoy!"
   exit 0;
 }
 
