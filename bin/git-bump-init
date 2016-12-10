@@ -1,0 +1,61 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-bump-common
+
+default(){
+  local suggested_version current_version
+  git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
+
+  local prefix_suggestion new_version
+  for arg do
+    shift
+    case "$arg" in
+      --defaults) set_global_flag defaults; ;;
+      -f|--force) set_global_flag force; ;;
+      --version=*) new_version="${arg##--version=}"; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
+  if gadgets_bump_is_initialized && ! flag force; then
+    warn -f "Git bump is already initialized."
+    warn -f "Use 'git bump init -f' to force reinitialization."
+    exit 0
+  fi
+
+  #Initialize git gadgets if necessary.
+  gadgets_is_initialized || gadgets_init
+
+
+  current_version=$(bump_retrieve_current_version)
+  if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then
+    ! flag interactive || ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
+    ! flag interactive || check_boolean ${ask_answer} || exit 0;
+  fi
+
+  suggested_version="${new_version:-`bump_retrieve_current_version || echo '0.1.0'`}"
+  if ! bump_check_version_file_exists "$suggested_version"; then
+    bump_version_number "$suggested_version" && bump_reset_changelog_file "$suggested_version"
+  elif ! bump_check_changelog_file_exists; then
+    bump_changelog "$suggested_version"
+  fi
+
+  local prefix_suggestion
+
+  if ! git_get bump.prefix.tag >/dev/null 2>&1 || flag force; then
+    prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
+    ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
+    ! flag interactive || prefix_suggestion="${ask_answer}"
+    git_set bump.prefix.tag "$prefix_suggestion"
+  fi
+
+  note "Git bump is now configured for branch $CURRENT_BRANCH. Enjoy!"
+  exit 0;
+}

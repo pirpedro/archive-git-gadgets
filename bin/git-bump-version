@@ -1,0 +1,115 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-bump-common
+
+default(){
+  local target_branch latest_hash current_version bump_version new_branch
+
+  for arg do
+    shift
+    case "$arg" in
+      major|minor|patch) INCREMENT="$arg"; ;;
+      --branch) set_flag branch; new_branch=${arg##--branch=}; ;;
+      -c|--commit) set_global_flag commit; ;;
+      -i|--interactive) set_global_flag interactive; verbosity on; ;;
+      -p|--push) set_global_flag push; ;;
+      -R|--recursive) set_global_flag recursive; ;;
+      -t|--tag)
+        version=$(cat .version)
+        if [[ `git tag -l "v$version"` ]]; then
+            if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
+              git tag -d $version
+              note "Removing current tag."
+            else
+              note "No changes made since last tag. Nothing to do."
+              exit;
+            fi
+        fi
+        git_editor $CHANGELOG_FILE
+        note "Creating new tag for version __${version}__."
+        git add $VERSION_FILE $CHANGELOG_FILE
+        git tag -a -m "Tag version $version." "v$version"
+        exit;
+        ;;
+      --version=*)
+        PARAM_VERSION=${arg##--version=}
+        if test -z $PARAM_VERSION; then
+          die "You need to pass version number"
+        fi
+        ;;
+      -*|--*) ; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+
+
+  # set the git bump target branch.
+  if ! startswith "$1" "-"; then target_branch="$1"; else target_branch=$CURRENT_BRANCH; fi
+
+  latest_hash=`git log --pretty=format:'%h' -n 1`
+
+  check_version_file_exists
+  check_change_log_file_exists
+
+  current_version=$(retrieve_current_version)
+  note "Current version: __${current_version}__"
+  note "Latest commit hash: __${latest_hash}__"
+
+  bump_version="${PARAM_VERSION:-`suggest_version_number "$INCREMENT"`}"
+
+  if flag interactive; then
+    ask --question="Enter a version number" --default="$bump_version" --free-answer
+    bump_version=${ask_answer}
+  fi
+  note -f "Will set new version to be __${bump_version}__."
+
+  if flag interactive && ! flag branch; then
+    ask_boolean "Create new branch?"
+    if check_boolean ${ask_answer}; then
+      set_flag branch;
+    fi
+  fi
+
+  if flag branch; then
+    new_branch=${new_branch:-$bump_version}
+
+  if flag interactive && flag branch; then
+    ask --question="Enter new branch name" --default="$new_branch" --free-answer
+    new_branch="${ask_answer}"
+  fi
+
+  if ! empty $new_branch; then
+    git checkout -b $new_branch $target_branch
+  fi
+
+  #handling the version number changes
+  bump_version_number $bump_version
+  bump_changelog $bump_version $BASE_STRING
+
+  if flag interactive && ! flag commit; then
+    ask_boolean "Commit and create tag to branch?"
+    if check_boolean ${ask_answer}; then set_flag commit; fi
+  fi
+
+  if flag interactive && ! flag push; then
+    ask_boolean "Push changes to __${target_branch}__ branch?"
+    if check_boolean ${ask_answer}; then set_flag push; fi
+  fi
+
+  if flag push || flag commit; then
+    git commit -m "Bump version to ${bump_version}."
+    git tag -a -m "Tag version $bump_version." "v${bump_version}"
+  fi
+
+  if flag push; then
+    git checkout $target_branch
+    if ! empty $new_branch; then git merge --no-ff $new_branch; fi
+    git push origin $target_branch
+    git push origin --tags
+    note "Pushing new version to the __${ORIGIN}__..."
+  fi
+}

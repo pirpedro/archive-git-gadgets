@@ -1,0 +1,6 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-common

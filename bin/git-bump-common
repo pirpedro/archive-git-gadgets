@@ -4,16 +4,11 @@ source $(git stats --script-location $0)/git-common
 
 NOW="$(date +'%B %d, %Y')"
 
-retrieve_current_version(){
-  git_get branch."$CURRENT_BRANCH".version || ( [ -f "$VERSION_FILE" ] && cat "$VERSION_FILE")
+bump_retrieve_current_version(){
+  [ -f "$VERSION_FILE" ] && cat "$VERSION_FILE"
 }
 
-load_settings(){
-  gadgets_load_settings
-  export CURRENT_VERSION=$(retrieve_current_version)
-}
-
-get_tagname(){
+bump_get_tagname(){
   [ -n "$1" ] || die "Parameter need to be passed."
   echo "$(git_get bump.prefix.tag)$1"
 }
@@ -21,13 +16,13 @@ get_tagname(){
 bump_tag_exists(){
   [ -n "$1" ] || die "Parameter need to be passed."
   local tag_name
-  tag_name=$(get_tagname "$1")
+  tag_name=$(bump_get_tagname "$1")
   git_tag_exists $tag_name
 }
 
-suggest_version_number(){
+bump_suggest_version_number(){
   local version_number version_number_split v_major v_minor v_patch increment_type
-  version_number=$(retrieve_current_version)
+  version_number=$(bump_retrieve_current_version)
   version_number_split=(`echo ${version_number} | tr '.' ' '`)
   v_major=${version_number_split[0]}
   v_minor=${version_number_split[1]}
@@ -63,10 +58,10 @@ bump_changelog(){
 
   echo "## $new_version ($NOW)" > $TEMP_FILE
   if ! empty $old_version && bump_tag_exists $old_version; then
-    from="$(get_tagname $old_version)..."
+    from="$(bump_get_tagname $old_version)..."
   fi
   if ! empty $new_version && bump_tag_exists $new_version; then
-    to="$(get_tagname $new_version)"
+    to="$(bump_get_tagname $new_version)"
   else
     to="HEAD"
   fi
@@ -86,7 +81,7 @@ bump_changelog(){
 #If version number parameter passed, check if version number is present in file.
 #Usage:
 # check_version_file_exists [version_number]
-check_version_file_exists(){
+bump_check_version_file_exists(){
   local check_version current_version
   check_version="$1"
   if [ ! -f $VERSION_FILE ]; then
@@ -118,8 +113,8 @@ bump_version_number(){
     die "Need to pass parameter."
   fi
   current_version=$(cat $VERSION_FILE)
-  current_version=${current_version:-$(retrieve_current_version)}
-  if check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
+  current_version=${current_version:-$(bump_retrieve_current_version)}
+  if bump_check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
 
   if empty "$VERSION_FILE"; then
     echo $new_version > $VERSION_FILE
@@ -152,20 +147,20 @@ bump_version_number(){
   note "Set version number to __${new_version}__."
 }
 
-reset_changelog_file(){
+bump_reset_changelog_file(){
     local reset
     reset=$FLAG_TRUE
-    if check_changelog_file_exists && flag interactive; then
+    if bump_check_changelog_file_exists && flag interactive; then
       ask_boolean "CHANGELOG.md file already exist. Reset it?"
       reset=${ask_answer}
     fi
     if check_boolean "$reset"; then
       truncate -s 0 $CHANGELOG_FILE
-      bump_changelog ${1:-`retrieve_current_version`}
+      bump_changelog ${1:-`bump_retrieve_current_version`}
     fi
 }
 
-check_changelog_file_exists(){
+bump_check_changelog_file_exists(){
   if [ ! -f $CHANGELOG_FILE ]; then
     echo "" > $CHANGELOG_FILE
     note "Created 'CHANGELOG.md' file in project root."
@@ -175,66 +170,4 @@ check_changelog_file_exists(){
   else
     return 0
   fi
-}
-
-initialize(){
-  local suggested_version current_version
-  git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
-
-  local prefix_suggestion new_version
-  for arg do
-    shift
-    case "$arg" in
-      --defaults) set_global_flag defaults; ;;
-      -f|--force) set_global_flag force; ;;
-      --version=*) new_version="${arg##--version=}"; ;;
-      *) set -- "$@" "$arg"; ;;
-    esac
-  done
-  if ! flag defaults; then
-    set_global_flag interactive
-    verbosity on
-  fi
-
-  if git_bump_is_initialized && ! flag force; then
-    warn -f "Git bump is already initialized."
-    warn -f "Use 'git bump init -f' to force reinitialization."
-    exit 0
-  fi
-
-  #Initialize git gadgets if necessary.
-  gadgets_is_initialized || gadgets_init
-
-
-  current_version=$(retrieve_current_version)
-  if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then
-    ! flag interactive || ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
-    ! flag interactive || check_boolean ${ask_answer} || exit 0;
-  fi
-
-  suggested_version="${new_version:-`retrieve_current_version || echo '0.1.0'`}"
-  if ! check_version_file_exists "$suggested_version"; then
-    bump_version_number "$suggested_version" && reset_changelog_file "$suggested_version"
-  elif ! check_changelog_file_exists; then
-    bump_changelog "$suggested_version"
-  fi
-
-  local prefix_suggestion
-
-  if ! git_get bump.prefix.tag >/dev/null 2>&1 || flag force; then
-    prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
-    ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
-    ! flag interactive || prefix_suggestion="${ask_answer}"
-    git_set bump.prefix.tag "$prefix_suggestion"
-  fi
-
-  note "Git bump is now configured for branch $CURRENT_BRANCH. Enjoy!"
-  exit 0;
-}
-
-untrack_branch(){
-  local branch
-  branch=${1:-$CURRENT_BRANCH}
-  git_unset "$branch".version
-  exit 0
 }

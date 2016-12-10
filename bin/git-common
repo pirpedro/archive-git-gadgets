@@ -21,11 +21,11 @@ git_is_initialized(){
   $(git_get --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
 }
 
-git_flow_is_initialized(){
+gadgets_flow_is_initialized(){
   git_is_initialized flow
 }
 
-git_bump_is_initialized(){
+gadgets_bump_is_initialized(){
   git_is_initialized branch."$CURRENT_BRANCH".version
 }
 
