@@ -34,14 +34,19 @@ load_settings(){
   fi
 
   gadgets_load_settings
-    export TEMP_FILE=$root_path/tmpfile
+  export TEMP_FILE=$root_path/tmpfile
   if gadgets_is_initialized; then
     export VERSION_FILE=$root_path/$(git_get bump.path.version)
     export CHANGELOG_FILE=$root_path/$(git_get bump.path.changelog)
   fi
 }
 
-flow="$1"; shift;
+
+if [ "$#" -gt 0 ] && ! startswith "$1" "-"; then
+  flow="$1"; shift;
+else
+  flow="version"
+fi
 if ! startswith "$1" "-"; then
   action="$1"; shift;
 fi
