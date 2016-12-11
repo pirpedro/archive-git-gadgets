@@ -18,11 +18,14 @@ load_lib bats-support
 load_lib bats-assert
 
 setup(){
-  [ -d ~/tmp/git-gadgets-test ] || mkdir -p ~/tmp/git-gadgets-test
-  cd ~/tmp/git-gadgets-test && rm -rf .git && rm -rf .gadgets && git init
+  if [ -d ~/tmp/git-gadgets-test ]; then
+  find ~/tmp/git-gadgets-test -mindepth 1 -delete
+  else
+    mkdir -p ~/tmp/git-gadgets-test
+  fi
+  cd ~/tmp/git-gadgets-test && git init
+  touch ~/tmp/focona
   [ -f foca ] || touch foca
-  [ ! -f .version] || rm -f .version
-  [ ! -f CHANGELOG.md ] || rm -f CHANGELOG.md
   git add foca && git commit -m "First commit"
 }
 
@@ -160,9 +163,9 @@ git_flow_init_options="develop\nyes\n\nyes\n\nyes\n\nno\n"
 
 
 git_bump_init(){
-  printf "$git_gadget_init_options$git_bump_init_options" | git bump init
+  git bump init --defaults
 }
 
 git_flow_init(){
-  printf "$git_gadget_init_options$git_flow_init_options" | git flow init
+  git flow init --defaults
 }
