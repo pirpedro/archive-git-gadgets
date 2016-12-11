@@ -69,6 +69,7 @@ default(){
   fi
 
   git_set flow.branch.develop "$develop"
+  export DEVELOP_BRANCH="$develop"
 
   if ! git_local_branch_exists "$develop"; then
     if git_remote_branch_exists "$ORIGIN/$develop"; then
@@ -81,18 +82,22 @@ default(){
   if ! gadgets_flow_is_initialized; then die "Something went wrong in the setup."; fi
 
   git checkout -q "$develop" || die "Not possible to checkout branch $develop."
+  export CURRENT_BRANCH="$develop"
 
   local prefix_suggestion
   for prefix in 'feature' 'release' 'hotfix'; do
     if ! git_get flow.prefix."$prefix" >/dev/null 2>&1 || flag force; then
       prefix_suggestion=$(git_get flow.prefix."$prefix" || echo "$prefix/")
-      ! flag defaults || ( git_set flow.prefix."$prefix" $prefix_suggestion && continue )
-      ask_boolean "Do you want to use $prefix branches"
-      if check_boolean "$ask_answer"; then
-        ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
-        git_set flow.prefix."$prefix" "${ask_answer}"
+      if flag defaults; then
+        git_set flow.prefix."$prefix" $prefix_suggestion
       else
-        git_set flow.prefix."$prefix"
+        ask_boolean "Do you want to use $prefix branches"
+        if check_boolean "$ask_answer"; then
+          ask --question="$prefix branches prefix" --default="$prefix_suggestion" --free-answer
+          git_set flow.prefix."$prefix" "${ask_answer}"
+        else
+          git_set flow.prefix."$prefix"
+        fi
       fi
     fi
   done
@@ -101,7 +106,9 @@ default(){
     printf "\n\n"
     note "Git bump is an extension that bump version to your project."
     note "Git flow can use it to organize version during his usage."
-    ask_boolean "Do you want to configure __git bump__ to this repository?"
-    ! check_boolean ${ask_answer} || ( printf "\n\n" && git bump init )
+    flag defaults || ask_boolean "Do you want to configure __git bump__ to this repository?"
+    if flag defaults || check_boolean ${ask_answer}; then
+      printf "\n\n" && git bump init
+    fi
   fi
 }

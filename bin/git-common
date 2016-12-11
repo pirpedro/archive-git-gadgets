@@ -192,6 +192,8 @@ EOF
   fi
 
   git_set core.master "$master"
+  export MASTER_BRANCH="$master"
+  export CURRENT_BRANCH="$master"
 
   if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
     git symbolic-ref HEAD "refs/heads/$master"

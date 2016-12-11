@@ -17,6 +17,15 @@ load_lib() {
 load_lib bats-support
 load_lib bats-assert
 
+setup(){
+  [ -d ~/tmp/git-gadgets-test ] || mkdir -p ~/tmp/git-gadgets-test
+  cd ~/tmp/git-gadgets-test && rm -rf .git && rm -rf .gadgets && git init
+  [ -f foca ] || touch foca
+  [ ! -f .version] || rm -f .version
+  [ ! -f CHANGELOG.md ] || rm -f CHANGELOG.md
+  git add foca && git commit -m "First commit"
+}
+
 assert_empty(){
   if [[ -n $1 ]]; then
       batslib_print_kv_single 5 'Value' "$1" \
@@ -73,35 +82,87 @@ assert_git_gadgets_config(){
 }
 
 assert_git_bump_config(){
-  local version recursive tag
-  recursive=true; tag="v";
+  local version version_file changelog_file recursive tag
+  version_file=".version"; changelog_file="CHANGELOG.md"; recursive=true; tag="v";
 
   assert_git_gadgets_config
   for option in $(echo "$1" | tr "," "\n"); do
     case "$option" in
+      version-file=* ) version_file=${option##version-file=} ;;
+      changelog-file=*) changelog_file=${option##changelog-file=} ;;
       version=* ) version=${option##version=}; ;;
       recursive=* ) recursive=${option##recursive=}; ;;
       tag=* ) tag=${option##tag=}; ;;
     esac
   done
-  assert [ -e .version ]
-  assert [ -e CHANGELOG.md && -s CHANGELOG.md ]
-  assert_equal $(cat .version) $version
+  assert [ -e $version_file ]
+  assert [ -e $changelog_file && -s $changelog_file ]
+  assert_equal $(cat $version_file) $version
+  assert_git_config_present bump.path.version $version_file
+  assert_git_config_present bump.path.changelog $changelog_file
   if [ "$recursive" == true ]; then
-    assert_git_config_present branch.master.recursive $recursive
+    assert_git_config_present bump.recursive $recursive
   else
-    assert_git_config_present branch.master.recursive false
+    assert_git_config_present bump.recursive false
   fi
-  assert_git_config_present branch.master.version $version
   assert_git_config_present bump.prefix.tag $tag
 }
 
+assert_git_flow_config(){
+  local develop_branch feature_prefix release_prefix hotfix_prefix bump
+  develop_branch="develop"; feature_prefix="feature/"; release_prefix="release/"
+  hotfix_prefix="hotfix/"; bump=1;
+
+  assert_git_gadgets_config
+  for option in $(echo "$1" | tr "," "\n"); do
+    case "$option" in
+      develop=* ) develop_branch=${option##develop=} ;;
+      feature=*) feature_prefix=${option##feature=} ;;
+      release=*) release_prefix=${option##release=} ;;
+      hotfix=*) hotfix_prefix=${option##hotfix=} ;;
+      bump=* ) bump=${option##bump=} ;;
+    esac
+  done
+
+  assert_git_config_present flow.branch.develop $develop_branch
+  assert_git_config_present flow.prefix.feature $feature_prefix
+  assert_git_config_present flow.prefix.release $release_prefix
+  assert_git_config_present flow.prefix.hotfix $hotfix_prefix
+  if [ bump -eq 0 ]; then
+    assert_git_bump_config
+  fi
+
+}
+
+# Branch master name
+git_gadget_init_options="master\n"
+
+#
+# version file path
+# Changelog path
+# recursive?
+# tag prefix
+# change changelog file?
+#
+git_bump_init_options=".version\nCHANGELOG.md\nyes\nv\nno\n"
+
+#
+# Branch develop name
+# Use feature?
+# Feature prefix
+# Use release?
+# Release prefix
+# Use hotfix?
+# Hotfix prefix
+# Configure git bump?
+#
+git_flow_init_options="develop\nyes\n\nyes\n\nyes\n\nno\n"
+
+
 git_bump_init(){
-  git bump init <<EOF
+  printf "$git_gadget_init_options$git_bump_init_options" | git bump init
+}
 
-y # create new .version file
-y # recursively replace
-\n #change changelog.md
-
-EOF
+git_flow_init(){
+  printf "$git_gadget_init_options$git_flow_init_options" | git flow init
 }

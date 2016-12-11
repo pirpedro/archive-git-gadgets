@@ -21,10 +21,9 @@ init(){
 
   if ! gadgets_flow_is_initialized; then
     printf "\n\n"
-    set_flag try_flow
     note -f "Git flow is an extension that handles a success branching model design."
     ask_boolean "Do you want to configure __git flow__ to this repository?"
-    ! check_boolean ${ask_answer} || ( printf "\n\n" && git flow init )
+    ! check_boolean ${ask_answer} || ( printf "\n\n" && git flow init && set_flag try_flow )
   fi
 
   #git flow also try to configure git bump, so we don't need to ask again

@@ -55,7 +55,7 @@ if [[ -e $BUMP_FILE ]]; then
   fi
 
   if ! gadgets_bump_is_initialized && [ "$flow" != "init" ]; then
-    die "Bump is not initialized. Please execute 'git flow init' to start setup."
+    die "Bump is not initialized. Please execute 'git bump init' to start setup."
   fi
   #Run flow
   . $BUMP_FILE

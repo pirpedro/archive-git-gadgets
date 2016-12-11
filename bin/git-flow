@@ -23,7 +23,9 @@ source $(git stats --script-location $0)/git-common
 
 load_settings(){
   gadgets_load_settings
-  export DEVELOP_BRANCH=$(git_get flow.branch.develop)
+  if gadgets_is_initialized; then
+    export DEVELOP_BRANCH=$(git_get flow.branch.develop)
+  fi
 }
 
 flow="$1"; shift;
