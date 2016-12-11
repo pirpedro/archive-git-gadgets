@@ -232,3 +232,9 @@ set_global_flag(){
     unset_flag "$1"
   fi
 }
+
+status(){
+  "$@"
+  local status=$?
+  $status
+}

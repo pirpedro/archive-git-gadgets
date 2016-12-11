@@ -2,6 +2,7 @@
 
 #git script variables
 SUBDIRECTORY_OK="yes"
+NONGIT_OK="yes"
 USAGE=`cat << EOF
 [FLOW] [ACTION] [BRANCH_NAME]
       Google for 'git flow' to understand the approach.
@@ -38,7 +39,7 @@ if [[ -e $FLOW_FILE ]]; then
     sudo chmod +x $FLOW_FILE
   fi
 
-  if ! git_flow_is_initialized && [ "$flow" != "init" ]; then
+  if ! gadgets_flow_is_initialized && [ "$flow" != "init" ]; then
     die "Flow is not initialized. Please execute 'git flow init' to start setup."
   fi
   #Run flow

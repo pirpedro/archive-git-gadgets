@@ -2,5 +2,46 @@
 
 #git script variables
 SUBDIRECTORY_OK="yes"
+NONGIT_OK="yes"
 
 source $(git stats --script-location $0)/git-common
+
+init(){
+  for arg do
+    shift
+    case "$arg" in
+      --defaults ) set_global_flag defaults ;;
+      -f ) set_global_flag force ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+  # if it was not possible to execute gadgets_init, exit.
+  gadgets_init || exit 1;
+
+  if ! gadgets_flow_is_initialized; then
+    printf "\n\n"
+    set_flag try_flow
+    note -f "Git flow is an extension that handles a success branching model design."
+    ask_boolean "Do you want to configure __git flow__ to this repository?"
+    ! check_boolean ${ask_answer} || ( printf "\n\n" && git flow init )
+  fi
+
+  #git flow also try to configure git bump, so we don't need to ask again
+  #if git flow wa initialized in this shell session.
+  if ! flag try_flow && ! gadgets_bump_is_initialized; then
+    printf "\n\n"
+    note -f "Git bump is an extension that bump version to your project."
+    ask_boolean "Do you want to configure __git bump__ to this repository?"
+    ! check_boolean ${ask_answer} || ( printf "\n\n" && git bump init )
+  fi
+}
+
+gadgets_load_settings
+
+flow="$1"; shift;
+
+case "$flow" in
+  init) "$flow" "$@"; ;; #try to exec flow as script function
+  * ) usage; ;;
+esac

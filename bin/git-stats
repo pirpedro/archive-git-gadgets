@@ -2,6 +2,7 @@
 
 #git scritp variables
 SUBDIRECTORY_OK="yes"
+NONGIT_OK="yes"
 USAGE=`cat << EOF
 [OPTIONS]
 

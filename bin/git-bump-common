@@ -5,7 +5,7 @@ source $(git stats --script-location $0)/git-common
 NOW="$(date +'%B %d, %Y')"
 
 bump_retrieve_current_version(){
-  [ -f "$VERSION_FILE" ] && cat "$VERSION_FILE"
+  [ -f "$VERSION_FILE" ] && ! empty $VERSION_FILE && cat "$VERSION_FILE"
 }
 
 bump_get_tagname(){
@@ -40,7 +40,7 @@ bump_suggest_version_number(){
       v_patch=$((v_patch + 1));
       ;;
   esac
-  echo "$V_MAJOR.$V_MINOR.$V_PATCH"
+  echo "$v_major.$v_minor.$v_patch"
 }
 
 # Organize commit changes in CHANGELOG.md
@@ -55,6 +55,8 @@ bump_changelog(){
   else
     die "You need to pass at least the new version number."
   fi
+  ! empty "$TEMP_FILE" || die "Something is wrong. Reexecute 'git bump init'."
+  [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
   echo "## $new_version ($NOW)" > $TEMP_FILE
   if ! empty $old_version && bump_tag_exists $old_version; then
@@ -74,34 +76,38 @@ bump_changelog(){
     ask_boolean "Now you can make adjustments to __CHANGELOG.md__. Do you want? " "${FLAG_FALSE}"
     ! check_boolean ${ask_answer} || git_editor $CHANGELOG_FILE
   fi
-  git add $CHANGELOG_FILE
+  git_add $CHANGELOG_FILE
 }
 
-#Check if version file exists. If not create it.
-#If version number parameter passed, check if version number is present in file.
-#Usage:
-# check_version_file_exists [version_number]
-bump_check_version_file_exists(){
+#Pass a version and check if it is below, equals or above current.
+#Return
+# 0 - if above version
+# 1 - if equal version
+# 2 - if below version
+bump_compare_version(){
+  [ -n "$1" ] || die "No version passed."
   local check_version current_version
   check_version="$1"
-  if [ ! -f $VERSION_FILE ]; then
-    if flag interactive; then
-      warn "Could not find a .version file."
-      ask_boolean "Do you want to create a version file and start from scratch?"
-      if ! check_boolean "${ask_answer}"; then exit 1; fi
-    fi
-
-    set_flag version_not_present;
-    touch $VERSION_FILE;
-    note "Created empty __.version__ file in project root.";
-  fi
-
   current_version=$(cat $VERSION_FILE)
 
-  if empty "$current_version" || (! empty "$check_version" && ! equals "$check_version" "$current_version"); then
-    set_flag version_not_present
+  if empty "$current_version"; then
+    return_value=0; #means that check version is above an "empty version".
+  elif equals "$check_version" "$current_version"; then
+    return_value=1;
+  else
+    current_split=(`echo ${current_version} | tr '.' ' '`)
+    check_split=(`echo ${check_version} | tr '.' ' '`)
+    for i in 1 2 3; do
+      if [ $(( ${check_split[$i]} + 1 )) -eq $(( ${current_split[$i]} + 1 )) ]; then
+        continue;
+      elif [ $(( ${check_split[$i]} + 1 )) -gt $(( ${current_split[$i]} + 1 )) ]; then
+        return_value=0
+      else
+        return_value=2
+      fi
+    done
   fi
-  return_value=$(! flag version_not_present)
+
   return $return_value
 }
 
@@ -112,62 +118,24 @@ bump_version_number(){
   else
     die "Need to pass parameter."
   fi
-  current_version=$(cat $VERSION_FILE)
-  current_version=${current_version:-$(bump_retrieve_current_version)}
-  if bump_check_version_file_exists "$new_version" && equals "$current_version" "$new_version"; then return 1; fi
+  current_version=$(bump_retrieve_current_version)
 
-  if empty "$VERSION_FILE"; then
-    echo $new_version > $VERSION_FILE
-    git add $VERSION_FILE
-  fi
+  bump_compare_version "$new_version"
+  [ ! "$?" -eq 1 ] || return 1; #same version, do nothing
+  [ -f "$VERSION_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
-  if git_get branch."$CURRENT_BRANCH".recursive >/dev/null 2>&1; then
-    set_global_flag recursive $(git_get branch."$CURRENT_BRANCH".recursive)
-  fi
-
-  if ! flag recursive; then
-    ! flag interactive || ask_boolean "Recursively replace version number in branch?"
-    if flag interactive; then
-      set_global_flag recursive ${ask_answer}
-    else
-      set_global_flag recursive
-    fi
-  fi
-
-  if flag recursive; then
-    git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git add {}"
-    git_set branch."$CURRENT_BRANCH".recursive "true"
+  #In git init, even recursive set to true, the version file could be empty
+  if ! empty $VERSION_FILE && check_boolean "$(git_get bump.recursive)"; then
+    git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md | xargs -I {} sh -c "sed -i "s/$current_version/$new_version/g" {}; git_add {}"
   else
     echo $new_version > $VERSION_FILE
-    git add $VERSION_FILE
-    git_set branch."$CURRENT_BRANCH".recursive "false"
+    git_add $VERSION_FILE
   fi
-
-  git_set branch."$CURRENT_BRANCH".version "$new_version"
   note "Set version number to __${new_version}__."
 }
 
 bump_reset_changelog_file(){
-    local reset
-    reset=$FLAG_TRUE
-    if bump_check_changelog_file_exists && flag interactive; then
-      ask_boolean "CHANGELOG.md file already exist. Reset it?"
-      reset=${ask_answer}
-    fi
-    if check_boolean "$reset"; then
-      truncate -s 0 $CHANGELOG_FILE
-      bump_changelog ${1:-`bump_retrieve_current_version`}
-    fi
-}
-
-bump_check_changelog_file_exists(){
-  if [ ! -f $CHANGELOG_FILE ]; then
-    echo "" > $CHANGELOG_FILE
-    note "Created 'CHANGELOG.md' file in project root."
-    return 1
-  elif empty $CHANGELOG_FILE; then
-    return 1
-  else
-    return 0
-  fi
+  [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
+  truncate -s 0 $CHANGELOG_FILE
+  bump_changelog ${1:-`bump_retrieve_current_version`}
 }

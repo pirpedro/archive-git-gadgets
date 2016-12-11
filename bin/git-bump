@@ -12,40 +12,33 @@
 
 #git scritp variables
 SUBDIRECTORY_OK="yes"
-USAGE=`cat << EOF
-[OPTIONS] [INCREMENT] [BRANCH]
+NONGIT_OK="yes"
 
-  INCREMENT
-    Optional parameter that change the increment in version.
-    The default version format is 'major.minor.patch' with
-    minor increments if the parameter was not mentioned.
+USAGE=`cat << EOF
+[COMMAND] [OPTIONS]
 
   OPTIONS
 
-    -c | --commit       Commit and tag version changes.
-
-    -i | --interactive  Use interactive mode.
-
-    -p | --push         Push to remote the current changes.
-
-    -R | --recursive    Recursive find/replace git project by version
-                        pattern.
-
-    -t | --tag          Regenerate the current tag if exists new commits.
-
-    -v | --version      Specify your own version number for the bump.
+    -v | --version      Show current version number.
 
 EOF`
-
-VERSION_FILE=$(git stats --root-path)/.version
-CHANGELOG_FILE=$(git stats --root-path)/CHANGELOG.md
-TEMP_FILE=$(git stats --root-path)/tmpfile
 
 source $(git stats --script-location $0)/git-bump-common
 
 load_settings(){
+  local root_path
+  if gadgets_is_initialized; then
+    root_path=$(git stats --root-path)
+  else
+    root_path=$(pwd)
+  fi
+
   gadgets_load_settings
-  export CURRENT_VERSION=$(bump_retrieve_current_version)
+    export TEMP_FILE=$root_path/tmpfile
+  if gadgets_is_initialized; then
+    export VERSION_FILE=$root_path/$(git_get bump.path.version)
+    export CHANGELOG_FILE=$root_path/$(git_get bump.path.changelog)
+  fi
 }
 
 flow="$1"; shift;

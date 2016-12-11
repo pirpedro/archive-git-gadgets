@@ -8,17 +8,20 @@ parse_before_config(){
 }
 
 git_get(){ git config --get --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
-git_set(){ git config --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) "$2"; }
+git_set(){
+  git config --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) "$2";
+  git_add $(git stats --root-path)/.gadgets/config
+}
 git_unset(){ git config --unset --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
 git_unset_all(){ git config --unset-all $(git stats --root-path)/.gadgets/config $(parse_before_config $1);}
 
 gadgets_is_initialized(){
-  $(git_get core.master >/dev/null 2>&1)
+  git rev-parse --git-dir >/dev/null 2>&1 && $(git_get core.master >/dev/null 2>&1)
 }
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git_get --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
+  $(git config --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
 }
 
 gadgets_flow_is_initialized(){
@@ -26,7 +29,7 @@ gadgets_flow_is_initialized(){
 }
 
 gadgets_bump_is_initialized(){
-  git_is_initialized branch."$CURRENT_BRANCH".version
+  git_is_initialized bump
 }
 
 git_local_branch_exists(){
@@ -58,6 +61,19 @@ git_remote_branch_delete(){
   fi
 }
 
+ADD_ARRAY=()
+git_add(){
+  [ "$#" != 0 ] || die "No files to be added."
+  git add "$@" >/dev/null && ADD_ARRAY+=("$@")
+}
+
+git_commit(){
+  [ -n "$1" ] || die "No extension name passed."
+  [ -n "$2" ] || die "No message passed."
+  git commit -m "[$1] $2" ${ADD_ARRAY[*]} >/dev/null
+  ADD_ARRAY=()
+}
+
 git_config_has_master(){
   local master=$(git_get core.master)
   [ "$master" != "" ] && git_local_branch_exists "$master"
@@ -69,9 +85,11 @@ git_config_has_develop(){
 }
 
 gadgets_load_settings(){
-  export ORIGIN=$(git_get core.origin || echo origin)
-  export MASTER_BRANCH=$(git_get core.master)
-  export CURRENT_BRANCH=$(git stats --long-current-branch)
+  if gadgets_is_initialized; then
+    export ORIGIN=$(git_get core.origin || echo origin)
+    export MASTER_BRANCH=$(git_get core.master)
+    export CURRENT_BRANCH=$(git stats --long-current-branch)
+  fi
 }
 
 git_local_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/heads; }
@@ -86,30 +104,68 @@ git_prefix_branches(){
 
 gadgets_init(){
   local master branch_count suggestion
-  case "$1" in
-    -f|--force ) set_flag force; ;;
-  esac
+  for arg do
+    shift
+    case "$arg" in
+      --defaults) set_global_flag defaults; ;;
+      -f|--force) set_global_flag force; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
+  #set flag to resolve git commit message in the end of function.
+  gadgets_is_initialized || set_flag new_gadgets_repo
 
   if gadgets_is_initialized && ! flag force; then
     warn -f "Git gadgets is already initialized."
-    exit 0
+    exit 1
   fi
 
+  flag force || flag defaults ||  cat <<EOF
+*   _____          _____   _____ ______ _______ _____   *
+*  / ____|   /\   |  __ \ / ____|  ____|__   __/ ____|  *
+* | |  __   /  \  | |  | | |  __| |__     | | | (___    *
+* | | |_ | / /\ \ | |  | | | |_ |  __|    | |  \___ \   *
+* | |__| |/ ____ \| |__| | |__| | |____   | |  ____) |  *
+*  \_____/_/    \_|_____/ \_____|______|  |_| |_____/   *
+*                                                       *
+EOF
+
+  flag force || note "Welcome to git gadgets. A bunch of git extensions to"
+  flag force || note "make your development more organized and productive.\n"
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    note "This is not a git repository already. Let's start..."
+    if git init >/dev/null 2>&1; then
+      note "Git initialized in directory __$(pwd)__.\n"
+    else
+      die "Something went wrong. GIT cant't be initialized in this directory."
+    fi
+  fi
+
+  flag force || note "Creating __.gadgets__ folder in your project root."
+  flag force || note "All extensions configuration stay here."
+  flag force || note "See documentation for further information.\n"
   local root_path
   root_path=$(git stats --root-path)
   [ -d $root_path/.gadgets ] || mkdir $root_path/.gadgets
-  [ -e $root_path/.gadgets/config ] || touch $root_path/.gadgets/config
+  [ -e $root_path/.gadgets/config ] || (touch $root_path/.gadgets/config && git_add $root_path/.gadgets/config )
 
   if git_config_has_master && ! flag force; then
     master=$(git_get core.master)
   else
     branch_count=$(git_local_branches | wc -l)
     if [ "$branch_count" -eq 0 ]; then
-      note -f "No branches exists. We need to create it."
+      note "No branches exists. We need to create it."
       suggestion=$(git_get core.master || echo master)
     else
-      note -f "You have these branchs:"
-      git_local_branches | sed 's/^.*$/   - &/g'
+      note "You have these branchs:"
+      flag defaults || git_local_branches | sed 's/^.*$/   - &/g'
       suggestion=
 			for mybranch in $(git_get core.master) 'production' 'main' 'master'; do
 				if git_local_branch_exists "$mybranch"; then
@@ -119,22 +175,37 @@ gadgets_init(){
 			done
     fi
 
-    ask --default="$suggestion" --free-answer --question="Branch name for production (master) branch"
-    master=${ask_answer}
+    if flag defaults; then
+      master=$suggestion
+    else
+      ask --default="$suggestion" --free-answer --question="Choose branch name for production (master) branch"
+      master=${ask_answer}
+    fi
   fi
 
   if git_local_branch_exists "$master"; then
-    note -f "Master branch configured."
+    note "Master branch configured."
   elif ! git_local_branch_exists "$master" && git_remote_branch_exists "$ORIGIN/$master"; then
     git branch "$master" "$ORIGIN/$master" >/dev/null 2>&1
   elif ! git_local_branch_exists "$master"; then
-    die "Local branch $master not found."
+    git checkout -b "$master" >/dev/null 2>&1
   fi
 
   git_set core.master "$master"
 
   if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
     git symbolic-ref HEAD "refs/heads/$master"
-    git commit --allow-empty --quiet -m "Initial Commit"
   fi
+
+  git_add .gadgets
+
+  local msg
+  if flag new_gadgets_repo; then
+    msg="Start using git gadgets."
+  else
+    msg="Reconfiguring git gadgets."
+  fi
+  git_commit gadgets "$msg"
+
+  note "Git gadgets initialized."
 }

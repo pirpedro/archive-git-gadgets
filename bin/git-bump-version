@@ -3,6 +3,27 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 
+USAGE=`cat << EOF
+version [OPTIONS] [INCREMENT] [BRANCH]
+
+  INCREMENT
+    Optional parameter that change the increment in version.
+    The default version format is 'major.minor.patch' with
+    minor increments if the parameter was not mentioned.
+
+  OPTIONS
+
+    -i | --interactive  Use interactive mode.
+
+    -p | --push         Push to remote the current changes.
+
+    -R | --recursive    Recursive find/replace git project by version
+                        pattern.
+
+    -v | --version      Specify your own version number for the bump.
+
+EOF`
+
 source $(git stats --script-location $0)/git-bump-common
 
 default(){
@@ -13,34 +34,14 @@ default(){
     case "$arg" in
       major|minor|patch) INCREMENT="$arg"; ;;
       --branch) set_flag branch; new_branch=${arg##--branch=}; ;;
-      -c|--commit) set_global_flag commit; ;;
       -i|--interactive) set_global_flag interactive; verbosity on; ;;
       -p|--push) set_global_flag push; ;;
       -R|--recursive) set_global_flag recursive; ;;
-      -t|--tag)
-        version=$(cat .version)
-        if [[ `git tag -l "v$version"` ]]; then
-            if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
-              git tag -d $version
-              note "Removing current tag."
-            else
-              note "No changes made since last tag. Nothing to do."
-              exit;
-            fi
-        fi
-        git_editor $CHANGELOG_FILE
-        note "Creating new tag for version __${version}__."
-        git add $VERSION_FILE $CHANGELOG_FILE
-        git tag -a -m "Tag version $version." "v$version"
-        exit;
-        ;;
       --version=*)
         PARAM_VERSION=${arg##--version=}
-        if test -z $PARAM_VERSION; then
-          die "You need to pass version number"
-        fi
+        ! empty $PARAM_VERSION || die "You need to pass version number"
         ;;
-      -*|--*) ; ;;
+      -*|--*) echo "foca" ;;
       *) set -- "$@" "$arg"; ;;
     esac
   done
@@ -52,20 +53,17 @@ default(){
 
   latest_hash=`git log --pretty=format:'%h' -n 1`
 
-  check_version_file_exists
-  check_change_log_file_exists
-
-  current_version=$(retrieve_current_version)
+  current_version=$(bump_retrieve_current_version)
   note "Current version: __${current_version}__"
   note "Latest commit hash: __${latest_hash}__"
 
-  bump_version="${PARAM_VERSION:-`suggest_version_number "$INCREMENT"`}"
+  bump_version="${PARAM_VERSION:-`bump_suggest_version_number "$INCREMENT"`}"
 
   if flag interactive; then
     ask --question="Enter a version number" --default="$bump_version" --free-answer
     bump_version=${ask_answer}
   fi
-  note -f "Will set new version to be __${bump_version}__."
+  note "Will set new version to __${bump_version}__."
 
   if flag interactive && ! flag branch; then
     ask_boolean "Create new branch?"
@@ -76,6 +74,7 @@ default(){
 
   if flag branch; then
     new_branch=${new_branch:-$bump_version}
+  fi
 
   if flag interactive && flag branch; then
     ask --question="Enter new branch name" --default="$new_branch" --free-answer
@@ -83,12 +82,19 @@ default(){
   fi
 
   if ! empty $new_branch; then
-    git checkout -b $new_branch $target_branch
+    git checkout -b $new_branch $target_branch >/dev/null 2>&1
   fi
 
   #handling the version number changes
-  bump_version_number $bump_version
-  bump_changelog $bump_version $BASE_STRING
+  bump_compare_version "$bump_version"
+
+  case "$?" in
+    0 ) bump_version_number "$bump_version" && bump_changelog "$bump_version" "$BASE_STRING";;
+    1 ) ;;# do nothing
+    2 ) bump_version_number "$bump_version" && bump_reset_changelog "$bump_version" ;;
+  esac
+
+  git_commit bump "Version changed to ${suggested_version}."
 
   if flag interactive && ! flag commit; then
     ask_boolean "Commit and create tag to branch?"

@@ -1,0 +1,24 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+source $(git stats --script-location $0)/git-bump-common
+
+default(){
+  version=$(bump_retrieve_current_version)
+  if [[ `git tag -l "v$version"` ]]; then
+      if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
+        git tag -d $version
+        note "Removing current tag."
+      else
+        note "No changes made since last tag. Nothing to do."
+        exit;
+      fi
+  fi
+  git_editor $CHANGELOG_FILE
+  note "Creating new tag for version __${version}__."
+  git add $VERSION_FILE $CHANGELOG_FILE
+  git tag -a -m "Tag version $version." "v$version"
+  exit;
+}
