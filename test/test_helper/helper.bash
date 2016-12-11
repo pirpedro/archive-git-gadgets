@@ -49,7 +49,7 @@ assert_git_config_present(){
   assert_not_empty "$1"
   assert_not_empty "$2"
   local config_path
-  config_path=$(git stats --root-path)/.gadgets/config
+  config_path=$(git stats --root-path)/.git/gadgets
   if ! git config --get --file $config_path "$1">/dev/null 2>&1 ||
   [ $(git config --get --file $config_path "$1") != "$2" ]; then
     batslib_print_kv_single_or_multi 8 \
@@ -63,7 +63,7 @@ assert_git_config_present(){
 assert_git_config_not_present(){
   assert_not_empty "$1"
   local config_path
-  config_path=$(git stats --root-path)/.gadgets/config
+  config_path=$(git stats --root-path)/.git/gadgets
   if git config --get --file $config_path "$1">/dev/null 2>&1 &&
   [ $(git config --get  --file $config_path "$1") != "" ]; then
     batslib_print_kv_single 5 'Value' "$(git config --get --file $config_path "$1" 2>&1)" \

@@ -7,13 +7,12 @@ parse_before_config(){
     echo "$1" | sed 's/\//-/g'
 }
 
-git_get(){ git config --get --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
+git_get(){ git config --get --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1); }
 git_set(){
-  git config --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) "$2";
-  git_add $(git stats --root-path)/.gadgets/config
+  git config --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1) "$2";
 }
-git_unset(){ git config --unset --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1); }
-git_unset_all(){ git config --unset-all $(git stats --root-path)/.gadgets/config $(parse_before_config $1);}
+git_unset(){ git config --unset --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1); }
+git_unset_all(){ git config --unset-all $(git stats --root-path)/.git/gadgets $(parse_before_config $1);}
 
 gadgets_is_initialized(){
   git rev-parse --git-dir >/dev/null 2>&1 && $(git_get core.master >/dev/null 2>&1)
@@ -21,7 +20,7 @@ gadgets_is_initialized(){
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git config --get-regexp --file $(git stats --root-path)/.gadgets/config $(parse_before_config $1) >/dev/null 2>&1)
+  $(git config --get-regexp --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1) >/dev/null 2>&1)
 }
 
 gadgets_flow_is_initialized(){
@@ -33,17 +32,17 @@ gadgets_bump_is_initialized(){
 }
 
 git_local_branch_exists(){
-  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$1" ] || die "git_local_branch_exists: No branch name passed."
   [ -n "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)" ]
 }
 
 git_remote_branch_exists(){
-  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$1" ] || die "git_remote_branch_exists: No branch name passed."
   [ -n "$(git for-each-ref --format='%(refname:short)' refs/remotes/$1)" ]
 }
 
 git_branch_exists(){
-  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$1" ] || die "git_branch_exists: No branch name passed."
   git_local_branch_exists "$1" || git_remote_branch_exists "$ORIGIN/$1"
 }
 
@@ -53,7 +52,7 @@ git_tag_exists(){
 }
 
 git_remote_branch_delete(){
-  [ -n "$1" ] || die "No branch name passed."
+  [ -n "$1" ] || die "git_remote_branch_delete: No branch name passed."
   if git_remote_branch_exists "$ORIGIN/$1"; then
     git push "$ORIGIN" :"$1" || die "Not possible to delete remote branch $1 in $origin"
   else
@@ -102,6 +101,27 @@ git_prefix_branches(){
   git for-each-ref --format='%(refname:short)' refs/heads/$1\*
 }
 
+git_is_empty_repo(){
+  [ -z `find .git/objects -type f -print -quit` ]
+}
+
+git_checkout(){
+  local branch current_branch
+  [ -n "$1" ] || die "git_checkout: No branch name passed."
+  branch="$1"
+  current_branch=${2:-$(git stats --long-current-branch)}
+  git fetch --all -p >/dev/null 2>&1 # get last remote changes, to keep consistence
+
+  if ! git_local_branch_exists "$branch"; then
+    if git_remote_branch_exists "$ORIGIN/$branch"; then
+      git branch "$branch" "$ORIGIN/$branch" >/dev/null 2>&1
+    elif git_local_branch_exists "$current_branch"; then
+      git branch "$branch" "$current_branch" >/dev/null 2>&1
+    fi
+  fi
+  git checkout "$branch" >/dev/null 2>&1
+}
+
 gadgets_init(){
   local master branch_count suggestion
   for arg do
@@ -148,13 +168,12 @@ EOF
     fi
   fi
 
-  flag force || note "Creating __.gadgets__ folder in your project root."
+  flag force || note "Creating __.git/gadgets__ file."
   flag force || note "All extensions configuration stay here."
   flag force || note "See documentation for further information.\n"
   local root_path
   root_path=$(git stats --root-path)
-  [ -d $root_path/.gadgets ] || mkdir $root_path/.gadgets
-  [ -e $root_path/.gadgets/config ] || (touch $root_path/.gadgets/config && git_add $root_path/.gadgets/config )
+  [ -e $root_path/.git/gadgets ] || (touch $root_path/.git/gadgets)
 
   if git_config_has_master && ! flag force; then
     master=$(git_get core.master)
@@ -183,23 +202,18 @@ EOF
     fi
   fi
 
-  if git_local_branch_exists "$master"; then
-    note "Master branch configured."
-  elif ! git_local_branch_exists "$master" && git_remote_branch_exists "$ORIGIN/$master"; then
-    git branch "$master" "$ORIGIN/$master" >/dev/null 2>&1
-  elif ! git_local_branch_exists "$master"; then
-    git checkout -b "$master" >/dev/null 2>&1
-  fi
-
   git_set core.master "$master"
+
   export MASTER_BRANCH="$master"
   export CURRENT_BRANCH="$master"
 
-  if ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1; then
+  if git_local_branch_exists "$master" && ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1 ; then
     git symbolic-ref HEAD "refs/heads/$master"
   fi
 
-  git_add .gadgets
+  file="$(git stats --root-path)/README.md"
+  [ -f $file ] || printf "#$(git stats --project-name)\n\nPowered by Git Gadgets." >> $file
+  git_add $file
 
   local msg
   if flag new_gadgets_repo; then
@@ -208,6 +222,8 @@ EOF
     msg="Reconfiguring git gadgets."
   fi
   git_commit gadgets "$msg"
+
+  git_checkout "$master"
 
   note "Git gadgets initialized."
 }

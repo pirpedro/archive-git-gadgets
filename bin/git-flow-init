@@ -26,7 +26,7 @@ default(){
   if gadgets_flow_is_initialized && ! flag force; then
     warn -f "Git flow is already initialized."
     warn -f "Use 'git flow init -f' to force reinitialization."
-    exit 0
+    exit 1
   fi
 
   #Initialize git gadgets if necessary.
@@ -69,11 +69,10 @@ default(){
   fi
 
   git_set flow.branch.develop "$develop"
-  export DEVELOP_BRANCH="$develop"
 
   if ! git_local_branch_exists "$develop"; then
     if git_remote_branch_exists "$ORIGIN/$develop"; then
-      git branch "$develop" "$ORIGIN/$develop">/dev/null 2>&1
+      git branch "$develop" "$ORIGIN/$develop" >/dev/null 2>&1
     else
       git branch --no-track "$develop" "$master_branch"
     fi
@@ -81,8 +80,7 @@ default(){
 
   if ! gadgets_flow_is_initialized; then die "Something went wrong in the setup."; fi
 
-  git checkout -q "$develop" || die "Not possible to checkout branch $develop."
-  export CURRENT_BRANCH="$develop"
+  git_checkout "$develop" || die "Not possible to checkout branch $develop."
 
   local prefix_suggestion
   for prefix in 'feature' 'release' 'hotfix'; do

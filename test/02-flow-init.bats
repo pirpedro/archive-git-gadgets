@@ -19,6 +19,12 @@ load test_helper/helper
   assert_git_flow_config
 }
 
+@test "[Flow] Try to init again" {
+  git_flow_init
+  run git flow init
+  assert_failure
+}
+
 @test "[Flow] Init - clean repo - default flag" {
   run git flow init --defaults
   assert_git_flow_config bump=0

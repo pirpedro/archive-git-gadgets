@@ -15,12 +15,25 @@ USAGE=`cat << EOF
 EOF`
 source "$(git --exec-path)/git-sh-setup"
 
+get_root_path(){
+  git rev-parse --show-toplevel
+}
+
+get_project_name(){
+  if git config --local remote.origin.url >/dev/null 2>&1; then
+    git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\1#p'
+  else
+    basename $(get_root_path)
+  fi
+}
+
 for arg do
   shift
   case "$arg" in
     --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit; ;;
     --long-current-branch )  git rev-parse --abbrev-ref HEAD;  exit; ;;
-    --root-path ) git rev-parse --show-toplevel; exit; ;;
+    --root-path ) get_root_path; exit; ;;
+    --project-name ) get_project_name; exit; ;;
     --script-location )
       case $(uname -s) in
       Linux)

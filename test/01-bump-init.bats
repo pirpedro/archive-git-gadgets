@@ -19,6 +19,12 @@ load test_helper/helper
   assert_git_bump_config version=0.1.0
 }
 
+@test "[Bump] Try to init again" {
+  git_bump_init
+  run git bump init
+  assert_failure
+}
+
 @test "[Bump] Init - clean repo - default flag" {
   run git bump init --defaults
   assert_git_bump_config version=0.1.0

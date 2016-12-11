@@ -30,7 +30,7 @@ default(){
   if gadgets_bump_is_initialized && ! flag force; then
     warn -f "Git bump is already initialized."
     warn -f "Use 'git bump init -f' to force reinitialization."
-    exit 0
+    exit 1
   fi
 
   #Initialize git gadgets if necessary.

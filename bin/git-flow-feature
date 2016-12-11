@@ -8,15 +8,15 @@ git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature br
 prefix=$(git_get flow.prefix.feature)
 
 start(){
-  git checkout -b $prefix$1 $DEVELOP_BRANCH;
+  git_checkout $prefix$1 $DEVELOP_BRANCH;
 }
 
 finish(){
   BRANCH=${1:-`git stats --current-branch`}
-  git checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git checkout $DEVELOP_BRANCH$BRANCH;
+  git_checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $DEVELOP_BRANCH$BRANCH;
 }
 
 push(){
   BRANCH=${1:-`git stats --current-branch`}
-  git checkout $DEVELOP_BRANCH && git push origin $DEVELOP_BRANCH && git branch -d $DEVELOP_BRANCH$BRANCH;
+  git_checkout $DEVELOP_BRANCH && git push origin $DEVELOP_BRANCH && git branch -d $DEVELOP_BRANCH$BRANCH;
 }

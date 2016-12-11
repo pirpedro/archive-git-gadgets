@@ -82,7 +82,7 @@ default(){
   fi
 
   if ! empty $new_branch; then
-    git checkout -b $new_branch $target_branch >/dev/null 2>&1
+    git_checkout $new_branch $target_branch
   fi
 
   #handling the version number changes
@@ -112,7 +112,7 @@ default(){
   fi
 
   if flag push; then
-    git checkout $target_branch
+    git_checkout $target_branch
     if ! empty $new_branch; then git merge --no-ff $new_branch; fi
     git push origin $target_branch
     git push origin --tags

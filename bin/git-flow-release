@@ -14,10 +14,10 @@ start(){
 finish(){
   BRANCH=${1:-`git stats --current-branch`}
   git bump --tag
-  git checkout $MASTER_BRANCH && git merge --no-ff $prefix$BRANCH && git checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git checkout $prefix$BRANCH;
+  git_checkout $MASTER_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $prefix$BRANCH;
 }
 
 push(){
   BRANCH=${1:-`git stats --current-branch`}
-  git push $ORIGIN $MASTER_BRANCH && git push $ORIGIN $DEVELOP_BRANCH && git push $ORIGIN --tags && git checkout $DEVELOP_BRANCH &&  git branch -d $prefix$BRANCH;
+  git push $ORIGIN $MASTER_BRANCH && git push $ORIGIN $DEVELOP_BRANCH && git push $ORIGIN --tags && git_checkout $DEVELOP_BRANCH &&  git branch -d $prefix$BRANCH;
 }
