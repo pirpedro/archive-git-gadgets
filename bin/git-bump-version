@@ -59,6 +59,11 @@ default(){
 
   bump_version="${PARAM_VERSION:-`bump_suggest_version_number "$INCREMENT"`}"
 
+  # bump version handle only with above version.
+  if ! bump_compare_version "$bump_version"; then
+    die "New version is not above current version. Use 'git bump revert-to' instead."
+  fi
+
   if flag interactive; then
     ask --question="Enter a version number" --default="$bump_version" --free-answer
     bump_version=${ask_answer}
@@ -85,16 +90,8 @@ default(){
     git_checkout $new_branch $target_branch
   fi
 
-  #handling the version number changes
-  bump_compare_version "$bump_version"
-
-  case "$?" in
-    0 ) bump_version_number "$bump_version" && bump_changelog "$bump_version" "$BASE_STRING";;
-    1 ) ;;# do nothing
-    2 ) bump_version_number "$bump_version" && bump_reset_changelog "$bump_version" ;;
-  esac
-
-  git_commit bump "Version changed to ${suggested_version}."
+  bump_version_number "$bump_version" && bump_changelog "$bump_version" "$BASE_STRING"
+  git_commit bump-version "${bump_version}"
 
   if flag interactive && ! flag commit; then
     ask_boolean "Commit and create tag to branch?"

@@ -102,7 +102,7 @@ git_prefix_branches(){
 }
 
 git_is_empty_repo(){
-  [ -z `find .git/objects -type f -print -quit` ]
+  [ $(find .git/objects -type f -print -quit | wc -c) -eq 0 ]
 }
 
 git_checkout(){

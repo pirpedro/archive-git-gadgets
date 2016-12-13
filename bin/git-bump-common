@@ -43,10 +43,24 @@ bump_suggest_version_number(){
   echo "$v_major.$v_minor.$v_patch"
 }
 
+# Return a tag name or a commit hash that identifies the version.
+bump_version_index(){
+  local version index
+  [ -n "$1" ] || die "bump_version_index: Version not passed."
+  version="$1"
+  if bump_tag_exists "$version"; then
+    index=$(bump_get_tagname "$version")
+  else
+    index=$(git log --all --pretty=format:"%H" --grep="\[bump-version\] $version" -n 1)
+  fi
+  echo "$index"
+}
+
 # Organize commit changes in CHANGELOG.md
 # bump_changelog <new_version> [old_version]
 bump_changelog(){
-  local new_version old_version from to
+  local new_version old_version new_version_index old_version_index
+  local version_list from to
   if [ "$#" -eq 2 ]; then
     new_version="$1"
     old_version="$2"
@@ -55,21 +69,45 @@ bump_changelog(){
   else
     die "You need to pass at least the new version number."
   fi
+
   ! empty "$TEMP_FILE" || die "Something is wrong. Reexecute 'git bump init'."
   [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
-  echo "## $new_version ($NOW)" > $TEMP_FILE
-  if ! empty $old_version && bump_tag_exists $old_version; then
-    from="$(bump_get_tagname $old_version)..."
+echo "new version $new_version, old version $old_version"
+  new_version_index=$(bump_version_index "$new_version")
+  new_version_index=${new_version_index:-"HEAD"} #if it's a new version, we dont´t have a version commit or tag yet.
+  if ! empty "$old_version"; then
+    old_version_index=$(bump_version_index "$old_version")
   fi
-  if ! empty $new_version && bump_tag_exists $new_version; then
-    to="$(bump_get_tagname $new_version)"
-  else
-    to="HEAD"
-  fi
-  git log --pretty=format:"  - %s" "$from$to" >> $TEMP_FILE
-  echo "" >> $TEMP_FILE
-  echo "" >> $TEMP_FILE
+  # if didn't find index, use first commit instead.
+  if empty "$old_version_index"; then old_version_index=$(git rev-list --max-parents=0 HEAD); fi
+  #preparing to use this variable in git range
+  #so bottom limit must use "parent" for his index appear too.
+  #old_version_index+="~1.."
+  local lower_limit upper_limit commit_time version_format
+  # return all commits that starts with [bump-version] and parse to keep only the version number.
+  version_list=($(git log --all --reverse --pretty=format:"%s" --grep='\[bump-version\]' $old_version_index..$new_version_index | sed 's/.*\[bump-version\] //'))
+  if equals "$new_version_index" "HEAD"; then version_list+=("HEAD"); fi #include HEAD in list
+  for version in ${version_list[*]}; do
+    lower_limit="$upper_limit"
+    upper_limit=$(bump_version_index "$version")
+    upper_limit=${upper_limit:-"HEAD"}
+    if [ ${#version_list[@]} -eq 1 ] || (! empty "$lower_limit" && ! empty "$upper_limit"); then
+      if ! empty "$lower_limit"; then lower_limit+="~1.."; fi
+      if equals "$version" "HEAD"; then
+        commit_time="$NOW"
+        version_format="$new_version"
+      else
+        commit_time=`date -r $(git log --pretty=format:"%at" $upper_limit -n 1) +'%B %d, %Y'`
+        version_format="$version"
+      fi
+      echo "## $version_format ($commit_time)" > $TEMP_FILE
+      git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit
+      git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit >> $TEMP_FILE
+      echo "" >> $TEMP_FILE
+      echo "" >> $TEMP_FILE
+    fi
+  done
   cat $CHANGELOG_FILE >> $TEMP_FILE
   mv $TEMP_FILE $CHANGELOG_FILE
   if flag interactive; then
@@ -101,9 +139,9 @@ bump_compare_version(){
       if [ $(( ${check_split[$i]} + 1 )) -eq $(( ${current_split[$i]} + 1 )) ]; then
         continue;
       elif [ $(( ${check_split[$i]} + 1 )) -gt $(( ${current_split[$i]} + 1 )) ]; then
-        return_value=0
+        return_value=0; break;
       else
-        return_value=2
+        return_value=2; break;
       fi
     done
   fi

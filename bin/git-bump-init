@@ -128,7 +128,9 @@ default(){
   else
     msg="Reconfiguring git bump."
   fi
-  git_commit bump "$msg"
+  
+  #it's a gadgets commit because all bump commits doesn't appear in CHANGELOG.
+  git_commit gadgets "$msg"
 
   suggested_version="${new_version:-`bump_retrieve_current_version || echo '0.1.0'`}"
   bump_compare_version "$suggested_version"
@@ -139,7 +141,7 @@ default(){
     2 ) bump_version_number "$suggested_version" && bump_reset_changelog "$suggested_version" ;;
   esac
 
-  git_commit bump "Version changed to ${suggested_version}."
+  git_commit bump-version "${suggested_version}"
 
   note "Git bump is now configured. Enjoy!"
   exit 0;
