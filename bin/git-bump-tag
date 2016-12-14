@@ -6,19 +6,30 @@ SUBDIRECTORY_OK="yes"
 source $(git stats --script-location $0)/git-bump-common
 
 default(){
-  version=$(bump_retrieve_current_version)
-  if [[ `git tag -l "v$version"` ]]; then
-      if [[ `git rev-list --count v$version..HEAD` -gt 0 ]]; then
-        git tag -d $version
-        note "Removing current tag."
-      else
-        note "No changes made since last tag. Nothing to do."
-        exit;
-      fi
-  fi
-  git_editor $CHANGELOG_FILE
-  note "Creating new tag for version __${version}__."
-  git add $VERSION_FILE $CHANGELOG_FILE
-  git tag -a -m "Tag version $version." "v$version"
-  exit;
+  local version version_index tag_name
+  for arg do
+    shift
+    case "$arg" in
+      -*|--*) usage ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+ version=$(bump_retrieve_current_version)
+ version_index=$(bump_version_index "$version")
+ if bump_tag_exists "$version"; then
+   if [[ `git rev-list --count $version_index..HEAD` -gt 0 ]]; then
+     tag_name=$(bump_get_tagname "$version")
+     git_tag_delete "$tag_name"
+     note "Removing current tag."
+   else
+     note "No changes made since last tag. Nothing to do."
+     exit;
+   fi
+ fi
+ note "Creating new tag for version __${version}__."
+ tag_name=$(bump_get_tagname "$version")
+ git tag -a -m "Tag version $version." "${tag_name}"
+ ! git_remote_exists || git push origin "${tag_name}" >/dev/null 2>&1
+ exit 0
 }

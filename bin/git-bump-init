@@ -128,7 +128,7 @@ default(){
   else
     msg="Reconfiguring git bump."
   fi
-  
+
   #it's a gadgets commit because all bump commits doesn't appear in CHANGELOG.
   git_commit gadgets "$msg"
 
@@ -142,6 +142,7 @@ default(){
   esac
 
   git_commit bump-version "${suggested_version}"
+  git bump tag
 
   note "Git bump is now configured. Enjoy!"
   exit 0;

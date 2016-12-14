@@ -20,6 +20,13 @@ bump_tag_exists(){
   git_tag_exists $tag_name
 }
 
+bump_remote_tag_exists(){
+  [ -n "$1" ] || die "Parameter need to be passed."
+  local tag_name
+  tag_name=$(bump_get_tagname "$1")
+  git_remote_tag_exists $tag_name
+}
+
 bump_suggest_version_number(){
   local version_number version_number_split v_major v_minor v_patch increment_type
   version_number=$(bump_retrieve_current_version)
@@ -73,7 +80,6 @@ bump_changelog(){
   ! empty "$TEMP_FILE" || die "Something is wrong. Reexecute 'git bump init'."
   [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
-echo "new version $new_version, old version $old_version"
   new_version_index=$(bump_version_index "$new_version")
   new_version_index=${new_version_index:-"HEAD"} #if it's a new version, we dont´t have a version commit or tag yet.
   if ! empty "$old_version"; then
@@ -102,7 +108,6 @@ echo "new version $new_version, old version $old_version"
         version_format="$version"
       fi
       echo "## $version_format ($commit_time)" > $TEMP_FILE
-      git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit
       git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit >> $TEMP_FILE
       echo "" >> $TEMP_FILE
       echo "" >> $TEMP_FILE

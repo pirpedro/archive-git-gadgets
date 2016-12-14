@@ -31,6 +31,10 @@ gadgets_bump_is_initialized(){
   git_is_initialized bump
 }
 
+git_remote_exists(){
+  git remote | grep origin > /dev/null
+}
+
 git_local_branch_exists(){
   [ -n "$1" ] || die "git_local_branch_exists: No branch name passed."
   [ -n "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)" ]
@@ -49,6 +53,31 @@ git_branch_exists(){
 git_tag_exists(){
   [ -n "$1" ] || die "No tag name passed."
   [ -n "$(git for-each-ref --format='%(refname:short)' refs/tags/$1)" ]
+}
+
+git_remote_tag_exists(){
+  [ -n "$1" ] || die "No tag name passed."
+  if git_remote_exists && empty_output git ls-remote refs/tags/$1; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+git_tag_delete(){
+  [ -n "$1" ] || die "git_tag_delete: No tag name."
+  git_local_tag_delete
+  git_remote_tag_delete
+}
+
+git_local_tag_delete(){
+  [ -n "$1" ] || die "git_local_tag_delete: No tag name."
+  git tag -d "$1"
+}
+
+git_remote_tag_delete(){
+  [ -n "$1" ] || die "git_remote_tag_delete: No tag name."
+  ! git_remote_tag_exists "$1" || git push origin --delete "$1" >/dev/null 2>&1
 }
 
 git_remote_branch_delete(){
