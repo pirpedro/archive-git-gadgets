@@ -41,14 +41,10 @@ load_settings(){
   fi
 }
 
-
-if [ "$#" -gt 0 ] && ! startswith "$1" "-"; then
+if equals "$1" "init" || equals "$1" "version" || equals "$1" "tag" equals "$1" "revert-to"; then
   flow="$1"; shift;
 else
   flow="version"
-fi
-if ! startswith "$1" "-"; then
-  action="$1"; shift;
 fi
 
 load_settings
