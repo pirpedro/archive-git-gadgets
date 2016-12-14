@@ -10,19 +10,9 @@
 # number), give user a chance to review and update the changelist
 # manually if needed and create a GIT tag.
 
-#git scritp variables
+#git script variables
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
-
-USAGE=`cat << EOF
-[COMMAND] [OPTIONS]
-
-  OPTIONS
-
-    -v | --version      Show current version number.
-
-EOF`
-
 source $(git stats --script-location $0)/git-bump-common
 
 load_settings(){

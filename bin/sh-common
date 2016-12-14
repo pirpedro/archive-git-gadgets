@@ -115,6 +115,36 @@ question(){ __notify --color="${question_color}" --flag="${QUESTION_FLAG}" "$@";
 warn(){ __notify --color="${warn_color}" --flag="${WARN_FLAG}" "$@";}
 die() { warn "Fatal: $@"; exit 1; }
 
+die () {
+	die_with_status 1 "$@"
+}
+
+die_with_status () {
+	status=$1
+	shift
+	printf >&2 '%s\n' "$*"
+	exit "$status"
+}
+
+dashless=$(basename -- "$0" | sed -e 's/-/ /')
+usage() {
+  die "usage: $dashless $USAGE"
+}
+
+if [ -z "$LONG_USAGE" ]; then
+  LONG_USAGE="usage: $dashless $USAGE"
+else
+  LONG_USAGE="usage: $dashless $USAGE
+
+$LONG_USAGE"
+fi
+
+if ! empty "$USAGE" && equals "$1" "-h"; then
+  echo "$LONG_USAGE"
+  exit
+fi
+unset LONG_USAGE
+
 #
 # Make a question
 #

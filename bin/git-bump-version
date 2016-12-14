@@ -3,26 +3,36 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 
-USAGE=`cat << EOF
+#USAGE=`cat << EOF
+read -r -d '' USAGE <<'EOF'
 version [OPTIONS] [INCREMENT] [BRANCH]
 
   INCREMENT
     Optional parameter that change the increment in version.
     The default version format is 'major.minor.patch' with
-    minor increments if the parameter was not mentioned.
+    default minor increments if parameter not mentioned.
 
   OPTIONS
 
+    --branch            Create a new branch to control changes
+                        in a safe working tree.
+
     -i | --interactive  Use interactive mode.
 
-    -p | --push         Push to remote the current changes.
+    --no-tag            Don't create tag for bumped version.
 
-    -R | --recursive    Recursive find/replace git project by version
-                        pattern.
+    -r | --recursive    Recursively change version number in any
+                        project file independent of initial
+                        configuration.
 
-    -v | --version      Specify your own version number for the bump.
+    -v                  Show current version number.
 
-EOF`
+    --version           Specify your own version number for the bump.
+
+  USAGE
+
+    git bump [version] [--branch=release-] [--no-tag] [-r] [--version=2.7.0]
+EOF
 
 source $(git stats --script-location $0)/git-bump-common
 
@@ -37,8 +47,8 @@ default(){
       --branch=*) set_flag branch; new_branch=${arg##--branch=}; ;;
       -i|--interactive) set_global_flag interactive; verbosity on; ;;
       --no-tag) echo "passou aqui"; set_global_flag no_tag; ;;
-      -p|--push) set_global_flag push; ;;
-      -R|--recursive) set_global_flag recursive; ;;
+      -r|--recursive) set_global_flag recursive; ;;
+      -v) cat $VERSION_FILE; exit; ;;
       --version=*)
         PARAM_VERSION=${arg##--version=}
         ! empty $PARAM_VERSION || die "You need to pass version number"

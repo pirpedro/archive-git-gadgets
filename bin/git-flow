@@ -3,7 +3,7 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
-USAGE=`cat << EOF
+read -r -d '' USAGE <<'EOF'
 [FLOW] [ACTION] [BRANCH_NAME]
       Google for 'git flow' to understand the approach.
       FLOW
@@ -17,7 +17,7 @@ USAGE=`cat << EOF
                 create tags if necessary.
       push      mostly syncronize master and develop branchs
                 with remote and remove the [FLOW] branch created.
-EOF`
+EOF
 
 source $(git stats --script-location $0)/git-common
 

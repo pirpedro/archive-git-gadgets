@@ -3,16 +3,22 @@
 #git scritp variables
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
-USAGE=`cat << EOF
+read -r -d '' USAGE <<'EOF'
 [OPTIONS]
 
       OPTIONS
 
       --current-branch              Show the last part of the current branch name.
+
       --long-current-branch         Show the current branch full name
+
       --root-path                   Show root path of current git repository
+
+      --project-name                Show project name, as remote repository name
+                                    or folder name.
+
       --script-location             Show the real location of a passed script file.
-EOF`
+EOF
 source "$(git --exec-path)/git-sh-setup"
 
 get_root_path(){

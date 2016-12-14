@@ -24,7 +24,18 @@ sudo chmod +x ~/git-gadgets/bin/*
 ```
 
 ###Usage
-After installation you can use any of `git gadgets` commands like
+
+See [command list](docs/commands.md) for each extension information.
+
+We introduce an alternative initialization command to help the initial configuration of `git gadgets` and some extensions:
+
+```
+git gadgets init
+```
+Don't be afraid if you didn't initialize any extension. You can do that later.
+
+####Example
+You can use any of `git gadgets` commands like
 
 `git [git_gadgets_command] [options]`
 
@@ -33,6 +44,8 @@ For example:
 git stats --long-current-branch
 ```
 shows the name of your current branch.
+
+
 
 ## Commands
 - [`git activity`](docs/activity.md) - show the last activities in all branchs in an easy format.

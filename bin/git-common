@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source $(git stats --script-location $0)/sh-common
-source $(git --exec-path)/git-sh-setup
+#source $(git --exec-path)/git-sh-setup
 
 parse_before_config(){
     echo "$1" | sed 's/\//-/g'
@@ -151,6 +151,15 @@ git_checkout(){
   git checkout "$branch" >/dev/null 2>&1
 }
 
+git_editor() {
+	if test -z "${GIT_EDITOR:+set}"
+	then
+		GIT_EDITOR="$(git var GIT_EDITOR)" || return $?
+	fi
+
+	eval "$GIT_EDITOR" '"$@"'
+}
+
 gadgets_init(){
   local master branch_count suggestion
   for arg do
@@ -256,3 +265,27 @@ EOF
 
   note "Git gadgets initialized."
 }
+
+# Make sure we are in a valid repository of a vintage we understand,
+# if we require to be in a git repository.
+git_dir_init () {
+	GIT_DIR=$(git rev-parse --git-dir) || exit
+	if [ -z "$SUBDIRECTORY_OK" ]
+	then
+		test -z "$(git rev-parse --show-cdup)" || {
+			exit=$?
+			echo >&2 "You need to run this command from the toplevel of the working tree."
+			exit $exit
+		}
+	fi
+	test -n "$GIT_DIR" && GIT_DIR=$(cd "$GIT_DIR" && pwd) || {
+		echo >&2 "Unable to determine absolute path of git directory"
+		exit 1
+	}
+	: ${GIT_OBJECT_DIRECTORY="$(git rev-parse --git-path objects)"}
+}
+
+if test -z "$NONGIT_OK"
+then
+	git_dir_init
+fi
