@@ -55,10 +55,13 @@ bump_version_index(){
   local version index
   [ -n "$1" ] || die "bump_version_index: Version not passed."
   version="$1"
+  echo "Find index to $version" >> ~/tmp/log
   if bump_tag_exists "$version"; then
     index=$(bump_get_tagname "$version")
+    echo "find tag: $index" >> ~/tmp/log
   else
     index=$(git log --all --pretty=format:"%H" --grep="\[bump-version\] $version" -n 1)
+    echo "find commit: $index" >> ~/tmp/log
   fi
   echo "$index"
 }
@@ -80,16 +83,21 @@ bump_changelog(){
   ! empty "$TEMP_FILE" || die "Something is wrong. Reexecute 'git bump init'."
   [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
+  echo "$old_version to $new_version" >> ~/tmp/log
   new_version_index=$(bump_version_index "$new_version")
   new_version_index=${new_version_index:-"HEAD"} #if it's a new version, we dont´t have a version commit or tag yet.
   if ! empty "$old_version"; then
     old_version_index=$(bump_version_index "$old_version")
   fi
   # if didn't find index, use first commit instead.
-  if empty "$old_version_index"; then old_version_index=$(git rev-list --max-parents=0 HEAD); fi
-  #preparing to use this variable in git range
-  #so bottom limit must use "parent" for his index appear too.
-  #old_version_index+="~1.."
+  if empty "$old_version_index"; then
+    old_version_index=$(git rev-list --max-parents=0 HEAD);
+  else
+    #preparing to use this variable in git range
+    #so bottom limit must use "parent" for his index appear too.
+    old_version_index+="~1"
+  fi
+
   local lower_limit upper_limit commit_time version_format
   # return all commits that starts with [bump-version] and parse to keep only the version number.
   version_list=($(git log --all --reverse --pretty=format:"%s" --grep='\[bump-version\]' $old_version_index..$new_version_index | sed 's/.*\[bump-version\] //'))
@@ -108,6 +116,7 @@ bump_changelog(){
         version_format="$version"
       fi
       echo "## $version_format ($commit_time)" > $TEMP_FILE
+      echo "git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit" >> ~/tmp/log
       git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit >> $TEMP_FILE
       echo "" >> $TEMP_FILE
       echo "" >> $TEMP_FILE

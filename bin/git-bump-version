@@ -36,7 +36,7 @@ default(){
       --branch) set_flag branch ;;
       --branch=*) set_flag branch; new_branch=${arg##--branch=}; ;;
       -i|--interactive) set_global_flag interactive; verbosity on; ;;
-      --no-tag) set_global_flag no_tag; ;;
+      --no-tag) echo "passou aqui"; set_global_flag no_tag; ;;
       -p|--push) set_global_flag push; ;;
       -R|--recursive) set_global_flag recursive; ;;
       --version=*)
@@ -89,10 +89,10 @@ default(){
     git_checkout $new_branch$bump_version $target_branch
   fi
 
-  bump_version_number "$bump_version" && bump_changelog "$bump_version" "$BASE_STRING"
+  bump_version_number "$bump_version" && bump_changelog "$bump_version" "$current_version"
   git_commit bump-version "${bump_version}"
 
-  if ! flag no_flag; then
+  if ! flag no_tag; then
     git bump tag
   fi
 }
