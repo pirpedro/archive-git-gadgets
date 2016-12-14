@@ -66,13 +66,13 @@ git_remote_tag_exists(){
 
 git_tag_delete(){
   [ -n "$1" ] || die "git_tag_delete: No tag name."
-  git_local_tag_delete
-  git_remote_tag_delete
+  git_local_tag_delete "$1"
+  git_remote_tag_delete "$1"
 }
 
 git_local_tag_delete(){
   [ -n "$1" ] || die "git_local_tag_delete: No tag name."
-  git tag -d "$1"
+  git tag -d "$1" >/dev/null 2>&1
 }
 
 git_remote_tag_delete(){

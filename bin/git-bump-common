@@ -140,7 +140,7 @@ bump_compare_version(){
   else
     current_split=(`echo ${current_version} | tr '.' ' '`)
     check_split=(`echo ${check_version} | tr '.' ' '`)
-    for i in 1 2 3; do
+    for i in 0 1 2; do
       if [ $(( ${check_split[$i]} + 1 )) -eq $(( ${current_split[$i]} + 1 )) ]; then
         continue;
       elif [ $(( ${check_split[$i]} + 1 )) -gt $(( ${current_split[$i]} + 1 )) ]; then
