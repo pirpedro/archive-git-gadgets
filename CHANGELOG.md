@@ -1,3 +1,30 @@
+## 1.0.0 (Dezembro 14, 2016)
+  - [Bump] Set 'version' as default 'git bump' flow
+  - [Bump] Fix recursive part.
+  - Fix checkout problem when repo is empty
+  - New tests
+  - All standard init flow tested.
+  - Fyll refactoring in init behavior.
+  - Refacttoring all initialization files.
+  - [Bump] Change branch creation.
+  - Merge branch 'feature/bump-init' into develop
+  - [Gadgets] Change config file location
+  - [Bump] Include gadgets_init in init function.
+  - [Bump] Add defaults parameter to init function
+  - [Bump] Test changes
+  - [Bump] new tests
+  - Add bats-assert library
+  - Add bats-support library
+  - refactor increment internal logic.
+  - Merge branch 'feature/bump-refactor' into develop
+  - Remove bad code in git-flow-feature
+  - Merge branch 'feature/new-git-flow' into develop
+  - Boost git flow functionalities.
+  - New ask auxiliar function.
+  - [flow] Start new approach.
+  - Create useful functions to all subcommands usage.
+  - Rebase git flow.
+
 ## 0.9.0 (Novembro 05, 2016)
   - Create documentation for github.
 
