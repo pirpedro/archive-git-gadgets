@@ -7,6 +7,45 @@ source $(git stats --script-location $0)/git-common
 git_get flow.prefix.hotfix >/dev/null 2>&1 || die "Flow is not using hotfix branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.hotfix)
 
+list(){
+  local hotfix_branchs base master_hash branch_hash
+  hotfix_branchs=$(git_local_branches_with_prefix "$prefix")
+  if empty $hotfix_branchs; then
+    warn -f "No local hotfix branchs."
+    warn -f "Use 'git flow hotfix start'."
+    exit 1
+  fi
+  current_branch=$(git stats --long-current-branch)
+  for branch in $feature_branchs; do
+    base=$(git merge-base "$branch" "$MASTER_BRANCH")
+    branch_hash=$(git rev-parse "$branch")
+		master_hash=$(git rev-parse "$MASTER_BRANCH")
+    if equals "$branch" "$current_branch"; then
+      printf "* "
+    else
+      printf "  "
+    fi
+    if flag verbose; then
+      printf "${branch##$prefix} "
+      if equals "$branch_hash" = "$master_hash"; then
+        printf "(no commits)"
+      else
+        local tagname name
+        tagname=$(git name-rev --tags --no-undefined --name-only "$base")
+        if ! empty $tagname; then
+            name="tag $tagname"
+        else
+            name=$(git rev-parse --short "$base")
+        fi
+        printf "(based on $name)"
+      fi
+    else
+      printf "%s" "${branch##$prefix}"
+    fi
+    echo
+  done
+}
+
 start(){
   git bump -R --hotfix --commit $MASTER_BRANCH
 }

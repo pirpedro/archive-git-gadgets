@@ -125,9 +125,18 @@ git_remote_branches(){ git for-each-ref --sort refname --format='%(refname:short
 git_branchs(){ git for-each-ref --sort refname --format='%(refname:short)' refs/remotes refs/heads; }
 git_tags(){ git for-each-ref --format='%(refname:short)' refs/tags; }
 
-git_prefix_branches(){
+git_local_branches_with_prefix(){
   [ -n "$1" ] || die "Prefix missing."
   git for-each-ref --format='%(refname:short)' refs/heads/$1\*
+}
+
+git_remote_branches_with_prefix(){
+  [ -n "$1" ] || die "Prefix missing."
+  git for-each-ref --format='%(refname:short)' refs/remotes/\*/$1\*
+}
+
+git_branchs_with_prefix(){
+  git for-each-ref --format='%(refname:short)' refs/remotes/\*/$1\* refs/heads/$1\*
 }
 
 git_is_empty_repo(){

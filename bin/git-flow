@@ -35,6 +35,14 @@ fi
 
 load_settings
 
+for arg do
+  shift
+  case "$arg" in
+    -v) verbosity on; set_global_flag verbose ;;
+    *) set -- "$@" "$arg"; ;;
+  esac
+done
+
 FLOW_FILE=$(location $0)/git-flow-$flow
 if [[ -e $FLOW_FILE ]]; then
   if [[ ! -x $FLOW_FILE ]]; then

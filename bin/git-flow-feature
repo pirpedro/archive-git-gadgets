@@ -7,6 +7,43 @@ source $(git stats --script-location $0)/git-common
 git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.feature)
 
+list(){
+  local feature_branchs base develop_hash branch_hash
+  feature_branchs=$(git_local_branches_with_prefix "$prefix")
+  if empty $feature_branchs; then
+    warn -f "No local feature branchs."
+    warn -f "Use 'git flow feature start'."
+    exit 1
+  fi
+  current_branch=$(git stats --long-current-branch)
+  for branch in $feature_branchs; do
+    base=$(git merge-base "$branch" "$DEVELOP_BRANCH")
+    branch_hash=$(git rev-parse "$branch")
+		develop_hash=$(git rev-parse "$DEVELOP_BRANCH")
+    if equals "$branch" "$current_branch"; then
+      printf "* "
+    else
+      printf "  "
+    fi
+    if flag verbose; then
+      printf "${branch##$prefix} "
+      if equals "$branch_hash" = "$develop_hash"; then
+        printf "(no commits)"
+      elif equals "$base" "$branch_hash"; then
+        printf "(is behind $DEVELOP_BRANCH, can fast-forward)"
+      elif equals "$base" "$develop_hash"; then
+        printf "(based on develop)"
+      else
+        printf "(should need a rebase)"
+      fi
+    else
+      printf "%s" "${branch##$prefix}"
+    fi
+    echo
+  done
+
+}
+
 start(){
   git_checkout $prefix$1 $DEVELOP_BRANCH;
 }

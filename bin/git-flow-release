@@ -7,6 +7,40 @@ source $(git stats --script-location $0)/git-common
 git_get flow.prefix.release >/dev/null 2>&1 || die "Flow is not using release branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.release)
 
+list(){
+  local release_branchs base develop_hash branch_hash
+  release_branchs=$(git_local_branches_with_prefix "$prefix")
+  if empty $release_branchs; then
+    warn -f "No local release branchs."
+    warn -f "Use 'git flow release start'."
+    exit 1
+  fi
+  current_branch=$(git stats --long-current-branch)
+  for branch in $release_branchs; do
+    base=$(git merge-base "$branch" "$DEVELOP_BRANCH")
+    branch_hash=$(git rev-parse "$branch")
+		develop_hash=$(git rev-parse "$DEVELOP_BRANCH")
+    if equals "$branch" "$current_branch"; then
+      printf "* "
+    else
+      printf "  "
+    fi
+    if flag verbose; then
+      printf "${branch##$prefix} "
+      if equals "$branch_hash" = "$develop_hash"; then
+        printf "(no commits)"
+      else
+        name=$(git rev-parse --short "$base")
+        printf "(based on $name)"
+      fi
+    else
+      printf "%s" "${branch##$prefix}"
+    fi
+    echo
+  done
+
+}
+
 start(){
   git bump -R --release --commit
 }
