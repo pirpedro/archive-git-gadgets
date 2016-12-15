@@ -160,6 +160,39 @@ git_checkout(){
   git checkout "$branch" >/dev/null 2>&1
 }
 
+#
+# git_compare_refs()
+#
+# Tests whether two references have diverged and need merging
+# first. It returns error codes to provide more detail, like so:
+#
+# 0    References point to the same commit
+# 1    First given reference needs fast-forwarding
+# 2    Second given reference needs fast-forwarding
+# 3    References need a real merge
+# 4    There is no merge base, i.e. the references have no common ancestors
+#
+git_compare_refs() {
+	local commit1 commit2 base
+
+	commit1=$(git rev-parse "$1"^{})
+	commit2=$(git rev-parse "$2"^{})
+	if [ "$commit1" != "$commit2" ]; then
+		base=$(git merge-base "$commit1" "$commit2")
+		if [ $? -ne 0 ]; then
+			return 4
+		elif [ "$commit1" = "$base" ]; then
+			return 1
+		elif [ "$commit2" = "$base" ]; then
+			return 2
+		else
+			return 3
+		fi
+	else
+		return 0
+	fi
+}
+
 git_editor() {
 	if test -z "${GIT_EDITOR:+set}"
 	then
@@ -298,3 +331,51 @@ if test -z "$NONGIT_OK"
 then
 	git_dir_init
 fi
+
+
+##require session
+
+require_local_branch(){
+  git_local_branch_exists "$1" || die "Local branch $1 is required."
+}
+
+require_remote_branch(){
+  git_remote_branch_exists "$1" || die "Remote branch $1 is required."
+}
+
+require_branch(){
+  git_branch_exists "$1" || die "Branch $1 is required."
+}
+
+require_local_branch_absent(){
+  ! git_local_branch_exists "$1" || die "Local branch $1 exist. Choose another."
+}
+
+require_remote_branch_absent(){
+  ! git_remote_branch_exists "$1" || die "Remote branch $1 exist. Choose another."
+}
+
+require_branch_absent(){
+  ! git_branch_exists "$1" || die "Bbranch $1 exist. Choose another."
+}
+
+require_branches_equal() {
+	local compare_refs_result
+
+	require_local_branch "$1"
+	require_remote_branch "$2"
+	git_compare_refs "$1" "$2"
+	compare_refs_result=$?
+
+	if [ $compare_refs_result -gt 0 ]; then
+		warn "Branches '$1' and '$2' have diverged."
+		if [ $compare_refs_result -eq 1 ]; then
+			die "And branch '$1' may be fast-forwarded."
+		elif [ $compare_refs_result -eq 2 ]; then
+			# Warn here, since there is no harm in being ahead
+			warn "And local branch '$1' is ahead of '$2'."
+		else
+			die "Branches need merging first."
+		fi
+	fi
+}

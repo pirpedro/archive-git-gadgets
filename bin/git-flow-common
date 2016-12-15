@@ -1,0 +1,12 @@
+#!/bin/bash
+
+source $(git stats --script-location $0)/git-common
+
+#Set config values for a specific branch
+flow_set_branch(){
+  local branch value
+  branch=$1
+  value=$2
+  git_set "branch.$branch.base" $value
+
+}

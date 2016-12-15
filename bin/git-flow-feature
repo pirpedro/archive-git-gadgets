@@ -4,8 +4,10 @@ SUBDIRECTORY_OK="yes"
 
 source $(git stats --script-location $0)/git-common
 
-git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
-prefix=$(git_get flow.prefix.feature)
+loading(){
+  git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
+  prefix=$(git_get flow.prefix.feature)
+}
 
 list(){
   local feature_branchs base develop_hash branch_hash
@@ -45,7 +47,37 @@ list(){
 }
 
 start(){
-  git_checkout $prefix$1 $DEVELOP_BRANCH;
+  local base candidate candidate_branch
+  for arg do
+    shift
+    case "$arg" in
+      --fetch) set_flag fetch; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+
+  ! empty "$1" || die "No branch candidate name passed."
+  candidate=$1
+  base=${2:-$DEVELOP_BRANCH}
+  candidate_branch=$prefix$candidate
+
+  require_local_branch "$base"
+  flow_set_branch $candidate_branch $base
+
+  if flag fetch; then
+    git_fetch_branch "$ORIGIN" "$base"
+  fi
+
+  require_branch_absent "$candidate_branch"
+
+  if git_remote_branch_exists "$ORIGIN/$base"; then
+    require_branches_equal "$base" "$ORIGIN/$base"
+  fi
+  
+  git_checkout $candidate_branch $base;
+  note "Branch $candidate_branch created, based on $base."
+  note "You are in branch $(git stats --long-current-branch)"
 }
 
 finish(){
@@ -57,3 +89,5 @@ push(){
   BRANCH=${1:-`git stats --current-branch`}
   git_checkout $DEVELOP_BRANCH && git push origin $DEVELOP_BRANCH && git branch -d $DEVELOP_BRANCH$BRANCH;
 }
+
+loading
