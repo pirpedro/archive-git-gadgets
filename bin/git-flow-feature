@@ -4,9 +4,16 @@ SUBDIRECTORY_OK="yes"
 
 source $(git stats --script-location $0)/git-common
 
-loading(){
-  git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
-  prefix=$(git_get flow.prefix.feature)
+git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
+prefix=$(git_get flow.prefix.feature)
+
+parse_args(){
+  if empty "$1"; then
+    die "No branch candidate name passed."
+  else
+    candidate="$1"
+  fi
+  candidate_branch="$prefix$candidate"
 }
 
 list(){
@@ -47,7 +54,6 @@ list(){
 }
 
 start(){
-  local base candidate candidate_branch
   for arg do
     shift
     case "$arg" in
@@ -55,15 +61,11 @@ start(){
       *) set -- "$@" "$arg"; ;;
     esac
   done
-
-
-  ! empty "$1" || die "No branch candidate name passed."
-  candidate=$1
+  parse_args "$@"
   base=${2:-$DEVELOP_BRANCH}
-  candidate_branch=$prefix$candidate
 
   require_local_branch "$base"
-  flow_set_branch $candidate_branch $base
+  flow_set_branch_base $candidate_branch $base
 
   if flag fetch; then
     git_fetch_branch "$ORIGIN" "$base"
@@ -74,20 +76,155 @@ start(){
   if git_remote_branch_exists "$ORIGIN/$base"; then
     require_branches_equal "$base" "$ORIGIN/$base"
   fi
-  
+
   git_checkout $candidate_branch $base;
   note "Branch $candidate_branch created, based on $base."
   note "You are in branch $(git stats --long-current-branch)"
 }
 
 finish(){
-  BRANCH=${1:-`git stats --current-branch`}
-  git_checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $DEVELOP_BRANCH$BRANCH;
+  for arg do
+    shift
+    case "$arg" in
+      --fetch) set_flag fetch; ;;
+      --rebase) set_flag rebase; ;;
+      --keep) set_flag keep; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+  parse_args "$@"
+  if empty "$candidate"; then
+    candidate=$(git stats --long-current-branch)
+    candidate_branch=$prefix$candidate
+  fi
+  require_branch_prefix "$candidate_branch" "$prefix"
+  require_branch "$candidate_branch"
+  base=$(flow_get_branch_base "$candidate_branch")
+  base=${base:-$DEVELOP_BRANCH}
+  require_local_branch "$base"
+
+  # Sanity checks
+	require_clean_working_tree
+
+  # We always fetch the Branch from Origin
+	# This is done to avoid possible commits on the remote that are not
+	# merged into the local branch
+	if git_remote_branch_exists "$ORIGIN/$candidate_branch"; then
+		git_fetch_branch "$ORIGIN" "$candidate_branch"
+	fi
+
+  # Update local branches with remote branches
+	if flag fetch; then
+		git_fetch_branch "$ORIGIN" "$base"
+	fi
+
+  # Check if the local branches have all the commits from the remote branches
+	if git_remote_branch_exists "$ORIGIN/$candidate_branch"; then
+			require_branches_equal "$candidate_branch" "$ORIGIN/$candidate_branch"
+	fi
+	if git_remote_branch_exists "$ORIGIN/$base"; then
+		require_branches_equal "$base" "$ORIGIN/$base"
+	fi
+
+  # If the user wants to rebase, do that first
+	if flag rebase; then
+		if ! git flow feature rebase "$candidate"; then
+			warn "Finish was aborted due to conflicts during rebase."
+			warn "Please finish the rebase manually now."
+			warn "When finished, re-run:"
+			warn "    git flow feature finish '$candidate' '$base'"
+			exit 1
+		fi
+	fi
+
+  # Merge into BASE
+	git_checkout "$base" || die "Could not check out branch '$BASE_BRANCH'."
+  if [ "$(git rev-list -n2 "$base..$candidate_branch" | wc -l)" -eq 1 ]; then
+				git_do merge --ff "$candidate_branch"
+	else
+				git_do merge --no-ff "$candidate_branch"
+  fi
+
+  if [ $? -ne 0 ]; then
+    warn -f "We detected a merge conflict"
+    warn -f "Use 'git mergetool' and 'git commit' before try again. "
+    exit 1
+  fi
+
+  flow_unset_branch_base "$candidate_branch"
+  cleanup
+
 }
 
-push(){
-  BRANCH=${1:-`git stats --current-branch`}
-  git_checkout $DEVELOP_BRANCH && git push origin $DEVELOP_BRANCH && git branch -d $DEVELOP_BRANCH$BRANCH;
+cleanup(){
+  require_branch "$candidate_branch"
+  require_clean_working_tree
+
+  if ! flag keep; then
+    if git_remote_branch_exists "$ORIGIN/$candidate_branch"; then
+      git_remote_branch_delete "$candidate_branch"
+    fi
+
+    if equals "$candidate_branch" "$(git stats --long-current-branch)"; then
+      git_checkout "$base" || die "Could not checkout $base."
+    fi
+
+    git branch -d "$candidate_branch"
+    flow_remove_branch_section "$candidate_branch"
+  fi
+
+  if flag push; then
+    git push "$ORIGIN" "$base" || die "Could not push changes from $base to $ORIGIN."
+  fi
 }
 
-loading
+rebase() {
+
+	# Define flags
+	DEFINE_boolean 'interactive' false 'do an interactive rebase' i
+	DEFINE_boolean 'preserve-merges' false 'try to recreate merges' p
+
+  for arg do
+    shift
+    case "$arg" in
+      -i) set_flag interactive; ;;
+      --preserve-merges) set_flag preserve; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+	# Parse arguments
+	parse_args "$@"
+
+	if empty "$candidate"; then
+    candidate=$(git stats --long-current-branch)
+    candidate_branch=$prefix$candidate
+  fi
+  require_branch_prefix "$candidate_branch" "$prefix"
+  require_branch "$candidate_branch"
+  base=$(flow_get_branch_base "$candidate_branch")
+  base=${base:-$DEVELOP_BRANCH}
+  require_local_branch "$base"
+
+	require_clean_working_tree
+
+	git_checkout "$candidate_branch"  || die "Could not check out branch $candidate_branch."
+	if flag interactive; then
+		opts="$opts -i"
+	fi
+	if flag preserve; then
+		opts="$opts -p"
+	fi
+	git rebase $opts "$base"
+}
+
+avoid_accidental_cross_branch_action() {
+	local current_branch
+
+	current_branch=$(git_current_branch)
+	if [ "$BRANCH" != "$current_branch" ]; then
+		warn "Trying to pull from '$BRANCH' while currently on branch '$current_branch'."
+		warn "To avoid unintended merges, git-flow aborted."
+		return 1
+	fi
+	return 0
+}

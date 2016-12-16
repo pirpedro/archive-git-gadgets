@@ -25,6 +25,7 @@ load_settings(){
   gadgets_load_settings
   if gadgets_is_initialized; then
     export DEVELOP_BRANCH=$(git_get flow.branch.develop)
+    export ORIGIN=$(git_get remote.origin || echo origin)
   fi
 }
 

@@ -12,7 +12,8 @@ git_set(){
   git config --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1) "$2";
 }
 git_unset(){ git config --unset --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1); }
-git_unset_all(){ git config --unset-all $(git stats --root-path)/.git/gadgets $(parse_before_config $1);}
+git_unset_all(){ git config --unset-all --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1);}
+git_remove_section(){ git config --file $(git stats --root-path)/.git/gadgets --remove-section $(parse_before_config $1); }
 
 gadgets_is_initialized(){
   git rev-parse --git-dir >/dev/null 2>&1 && $(git_get core.master >/dev/null 2>&1)
@@ -141,6 +142,19 @@ git_branchs_with_prefix(){
 
 git_is_empty_repo(){
   [ $(find .git/objects -type f -print -quit | wc -c) -eq 0 ]
+}
+
+git_is_clean_working_tree() {
+	git rev-parse --verify HEAD >/dev/null || exit 1
+	git update-index -q --ignore-submodules --refresh
+
+	# Check for unstaged changes
+	git diff-files --quiet --ignore-submodules || return 1
+
+	# Check for Uncommited changes
+	git diff-index --cached --quiet --ignore-submodules HEAD -- || return 2
+
+	return 0
 }
 
 git_checkout(){
@@ -356,7 +370,14 @@ require_remote_branch_absent(){
 }
 
 require_branch_absent(){
-  ! git_branch_exists "$1" || die "Bbranch $1 exist. Choose another."
+  ! git_branch_exists "$1" || die "Branch $1 exist. Choose another."
+}
+
+require_branch_prefix(){
+  local branch prefix
+  branch="$1"
+  prefix="$2"
+  startswith "$branch" "$prefix" || die "$branch can't be used. NOt prefixed with $prefix."
 }
 
 require_branches_equal() {
@@ -377,5 +398,18 @@ require_branches_equal() {
 		else
 			die "Branches need merging first."
 		fi
+	fi
+}
+
+require_clean_working_tree() {
+	local result
+
+	git_is_clean_working_tree
+	result=$?
+	if [ $result -eq 1 ]; then
+		die "Working tree contains unstaged changes. Aborting."
+	fi
+	if [ $result -eq 2 ]; then
+		die "Index contains uncommited changes. Aborting."
 	fi
 }
