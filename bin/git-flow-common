@@ -6,7 +6,7 @@ source $(git stats --script-location $0)/git-common
 flow_set_branch_base(){
   local branch key value
   branch=$1
-  value=$3
+  value=$2
   git_set "branch.$branch.base" $value
 
 }

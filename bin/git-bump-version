@@ -96,6 +96,7 @@ default(){
   fi
 
   if flag branch; then
+    require_branch_absent "$new_branch$bump_version"
     git_checkout $new_branch$bump_version $target_branch
   fi
 

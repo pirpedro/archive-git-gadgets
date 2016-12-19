@@ -2,12 +2,179 @@
 
 SUBDIRECTORY_OK="yes"
 
-source $(git stats --script-location $0)/git-common
+source $(git stats --script-location $0)/git-flow-common
 
 git_get flow.prefix.release >/dev/null 2>&1 || die "Flow is not using release branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.release)
 
+#
+# Function used by finish command to actually finish the release branch
+# Called when the base of the release is the $DEVELOP_BRANCH
+#
+_finish() {
+	local opts merge_branch commit keepmsg remotebranchdeleted localbranchdeleted compare_refs_result merge_result
+
+	remotebranchdeleted=$FLAGS_FALSE
+	localbranchdeleted=$FLAGS_FALSE
+
+	# Update local branches with remote branches
+	if flag fetch; then
+		git_fetch_branch "$ORIGIN" "$MASTER_BRANCH"
+		git_fetch_branch "$ORIGIN" "$DEVELOP_BRANCH"
+	fi
+
+	# Check if the local branches have all the commits from the remote branches
+	if git_remote_branch_exists "$ORIGIN/$BRANCH"; then
+		require_branches_equal "$BRANCH" "$ORIGIN/$BRANCH"
+	fi
+	if git_remote_branch_exists "$ORIGIN/$MASTER_BRANCH"; then
+			git_compare_refs "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
+			compare_refs_result=$?
+
+			if [ $compare_refs_result -gt 0 ]; then
+				warn "Branches '"$MASTER_BRANCH"' and '"$ORIGIN/$MASTER_BRANCH"' have diverged."
+				if [ $compare_refs_result -eq 1 ]; then
+					warn "Fast forwarding '"$MASTER_BRANCH"'."
+					git_checkout "$MASTER_BRANCH" || die "Could not check out branch '$MASTER_BRANCH'."
+					git merge  --ff-only "$ORIGIN/$MASTER_BRANCH" >/dev/null 2>&1
+					merge_result=$?
+					git_checkout "$BRANCH"
+					if [ $merge_result -gt 0 ]; then
+						die "'"$MASTER_BRANCH"' can not be fast forwarded."
+					fi
+				elif [ $compare_refs_result -eq 2 ]; then
+					# Warn here, since there is no harm in being ahead
+					warn "And local branch '$1' is ahead of '$2'."
+				else
+					die "Branches need merging first."
+				fi
+			fi
+	fi
+	if git_remote_branch_exists "$ORIGIN/$DEVELOP_BRANCH"; then
+		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
+	fi
+
+	if ! flag notag && ! flag bump; then
+		# We ask for a tag, be sure it does not exists or
+		# points to the latest hotfix commit
+		if git_tag_exists "$VERSION_PREFIX$TAGNAME"; then
+			git_compare_refs  "$BRANCH" "$VERSION_PREFIX$TAGNAME"^2 2>/dev/null
+			[ $? -eq 0 ] || die "Tag already exists and does not point to release branch '$BRANCH'"
+		fi
+	fi
+
+	# Try to merge into master.
+	# In case a previous attempt to finish this release branch has failed,
+	# but the merge into master was successful, we skip it now
+	if ! git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH"; then
+			git_checkout "$MASTER_BRANCH" || die "Could not check out branch '$MASTER_BRANCH'."
+			git_do merge --no-ff "$BRANCH" || die "There were merge conflicts." # TODO: What do we do now?
+
+	fi
+
+	if ! flag notag; then
+		# Try to tag the release.
+		# In case a previous attempt to finish this release branch has failed,
+		# but the tag was set successful, we skip it now
+    git_checkout "$MASTER_BRANCH" || die "Could not check out branch '$MASTER_BRANCH'."
+    if flag bump; then
+      git bump tag
+    else
+      if ! git_tag_exists "$VERSION_PREFIX$TAGNAME"; then
+		    opts="-a"
+  			flag sign && opts="$opts -s"
+  			git tag $opts "$VERSION_PREFIX$TAGNAME" || die "Tagging failed. Please run finish again to retry."
+  		fi
+    fi
+	fi
+
+	merge_branch="$MASTER_BRANCH"
+
+	# Try to merge into develop.
+	# In case a previous attempt to finish this release branch has failed,
+	# but the merge into develop was successful, we skip it now
+	if ! git_is_branch_merged_into "$merge_branch" "$DEVELOP_BRANCH"; then
+		git_checkout "$DEVELOP_BRANCH" || die "Could not check out branch '$DEVELOP_BRANCH'."
+		git merge --no-ff "$MASTER_BRANCH" || die "There were merge conflicts." # TODO: What do we do now?
+	fi
+
+	# Delete branch
+	if ! flag keep; then
+
+		if equals "$BRANCH" "$(git stats --long-current-branch)"; then
+			git_checkout "$MASTER_BRANCH" || die "Could not check out branch '$MASTER_BRANCH'."
+		fi
+
+		# Always delete remote first
+		if git_remote_branch_exists "$ORIGIN/$BRANCH"; then
+			git_remote_branch_delete "$BRANCH"
+		fi
+
+		# Delete local after remote to avoid warnings
+		git branch -d "$BRANCH"
+
+
+		# no more branches: we can safely remove config section
+		if ! git_remote_branch_exists "$ORIGIN/$BRANCH" -a ! git_local_branch_exists "$BRANCH"; then
+			flow_remove_branch_section "$BRANCH"
+		fi
+	fi
+
+	if flag push; then
+	    git push "$ORIGIN" "$DEVELOP_BRANCH" || die "Could not push branch '$DEVELOP_BRANCH' to remote '$ORIGIN'."
+	    git push "$ORIGIN" "$MASTER_BRANCH" || die "Could not push branch '$MASTER_BRANCH' to remote '$ORIGIN'."
+      git push --tags "$ORIGIN" || die "Could not push tags to remote '$ORIGIN'."
+	fi
+
+	if flag fetch; then
+		note "Latest objects have been fetched from '$ORIGIN'"
+	fi
+	note "Release branch '$BRANCH' has been merged into '$MASTER_BRANCH'"
+	if ! flag notag; then
+		note "The release was tagged."
+	fi
+
+	if ! flag keep; then
+	  note "- Release branch '$BRANCH' was removed."
+	fi
+
+	if flag push; then
+		note "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"
+	fi
+	note "- You are now on branch '$(git stats --long-current-branch)'"
+}
+
+help(){
+USAGE='' && read -r -d '' USAGE <<'EOF'
+release
+git flow release [list]
+git flow release start
+git flow release finish
+git flow release publish
+git flow release track
+git flow release delete
+
+Manage your release branches.
+
+For more specific help type the command followed by -h
+EOF
+  usage
+}
+
+default() {
+	list "$@"
+}
+
 list(){
+  USAGE="\
+release [list] [-h] [-v]
+
+Lists all the existing release branches in the local repository.
+
+    -h   Show help
+    -v   Verbose output
+"
+  parse_args "$@"
   local release_branchs base develop_hash branch_hash
   release_branchs=$(git_local_branches_with_prefix "$prefix")
   if empty $release_branchs; then
@@ -38,20 +205,284 @@ list(){
     fi
     echo
   done
-
 }
 
-start(){
-  git bump -R --release --commit
+parse_args(){
+  case "$1" in
+    -h ) usage ;;
+    * ) VERSION="$1"
+  esac
+
+  if ! empty "$VERSION"; then
+    if startswith "$VERSION" "$prefix"; then
+      VERSION=${VERSION##$prefix}
+    fi
+    BRANCH="$prefix$VERSION"
+  fi
 }
 
-finish(){
-  BRANCH=${1:-`git stats --current-branch`}
-  git bump --tag
-  git_checkout $MASTER_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $DEVELOP_BRANCH && git merge --no-ff $prefix$BRANCH && git_checkout $prefix$BRANCH;
+require_no_existing_release_branches() {
+	local release_branches first_branch
+
+	release_branches=$(git_local_branches_prefixed "$prefix")
+	first_branch=$(echo ${release_branches} | head -n1)
+
+	first_branch=${first_branch#$prefix}
+	[ -z "$release_branches" ] || die "There is an existing release branch '$first_branch'. Finish that one first."
 }
 
-push(){
-  BRANCH=${1:-`git stats --current-branch`}
-  git push $ORIGIN $MASTER_BRANCH && git push $ORIGIN $DEVELOP_BRANCH && git push $ORIGIN --tags && git_checkout $DEVELOP_BRANCH &&  git branch -d $prefix$BRANCH;
+start() {
+	USAGE="\
+git flow release start [options] <version> [<base>]
+
+Start a new release branch
+
+    -h              Show this help
+    --fetch         Fetch from $ORIGIN before performing finish
+    -v              Verbose (more) output
+"
+	local base
+
+  for arg do
+    shift
+    case "$arg" in
+      --fetch) set_flag fetch; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+  parse_args "$@"
+	base=${2:-$DEVELOP_BRANCH}
+
+  ! gadgets_bump_is_initialized || set_flag bump
+	require_local_branch "$base"
+  if flag bump; then
+    if empty "$VERSION"; then
+      git bump --no-tag --branch="$prefix" "$base"
+    else
+      git bump --version="$VERSION" --no-tag --branch="$prefix" "$base"
+    fi
+    BRANCH=$(git stats --long-current-branch) #retrieve branch name.
+  else
+    ! empty "$VERSION" || die "No version passed."
+    require_no_existing_release_branches
+    # Sanity checks
+    require_clean_working_tree
+    require_branch_absent "$BRANCH"
+    if flag fetch; then
+  		git_fetch_branch "$ORIGIN" "$base"
+  	fi
+  	if git_remote_branch_exists "$ORIGIN/$base"; then
+  		require_branches_equal "$base" "$ORIGIN/$base"
+  	fi
+    git_checkout "$BRANCH" "$base" || die "Could not create release branch '$BRANCH'."
+  fi
+
+	flow_set_branch_base $BRANCH $base
+	note "- A new branch '$BRANCH' was created, based on '$base'"
+  note "- You are now on branch '$(git stats --long-current-branch)'"
+}
+
+finish() {
+	USAGE="\
+git flow release finish [-h] [-F] [-s] [-u] [-m | -f] [-p] [-k] [-n] [-b] [-S] <version>
+
+Finish a release branch
+
+    -h              Show this help
+    --fetch         Fetch from origin before performing finish
+    -s|--sign             Sign the release tag cryptographically
+    --push          Push to origin after performing finish
+    --keep          Keep branch after performing finish
+    --no-tag           Don't tag this release
+"
+  for arg do
+    shift
+    case "$arg" in
+      --fetch) set_flag fetch; ;;
+      -s|--sign) set_flag sign ;;
+      --push) set_flag push ;;
+      --keep) set_flag keep ;;
+      --no-tag) set_flag notag ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+	# Parse arguments
+	parse_args "$@"
+
+	# Use current branch if no version is given
+	if empty "$VERSION"; then
+		BRANCH=$(git stats --long-current-branch)
+    VERSION=${BRANCH##$prefix}
+	fi
+
+	# Use branch name if no tag name is given
+	TAGNAME=$VERSION
+
+	BASE_BRANCH=$(flow_get_branch_base $BRANCH)
+	BASE_BRANCH=${BASE_BRANCH:-$DEVELOP_BRANCH}
+	git_local_branch_exists "$BASE_BRANCH" || die "The base '$BASE_BRANCH' doesn't exists locally or is not a branch. Can't finish the release branch '$BRANCH'."
+
+	# Sanity checks
+	require_branch "$BRANCH"
+	require_clean_working_tree
+
+	# We always fetch the Branch from Origin
+	# This is done to avoid possible commits on the remote that are not
+	# merged into the local branch
+	if git_remote_branch_exists "$ORIGIN/$BRANCH"; then
+			git_fetch_branch "$ORIGIN" "$BRANCH"
+	fi
+		_finish
+}
+
+publish() {
+	USAGE="\
+git flow release publish [-h] <name>
+
+Publish the release branch <name> on $ORIGIN
+
+    -h           Show this help
+"
+	# Parse arguments
+	parse_args "$@"
+
+  # Use current branch if no version is given
+	if empty "$VERSION"; then
+		BRANCH=$(git stats --long-current-branch)
+    VERSION=${BRANCH##$prefix}
+	fi
+
+	# Sanity checks
+	require_clean_working_tree
+	require_branch "$BRANCH"
+	require_branch_absent "$ORIGIN/$BRANCH"
+
+	# Create remote branch with remote tracking
+	git push -u "$ORIGIN" "$BRANCH:$BRANCH"
+	git_fetch_branch "$ORIGIN" "$BRANCH" || die "Could not fetch branch '$BRANCH' from remote '$ORIGIN'."
+	git_checkout "$BRANCH" || die "Could not check out branch '$BRANCH'."
+
+	note "- The remote branch '$BRANCH' was created or updated"
+	note "- The local branch '$BRANCH' was configured to track the remote branch"
+	note "- You are now on branch '$(git stats --long-current-branch)'"
+}
+
+track() {
+	USAGE="\
+git flow release track [-h] <name>
+
+Start tracking release <name> that is shared on $ORIGIN
+
+    -h           Show this help
+"
+	# Parse arguments
+	parse_args "$@"
+
+	! empty "$VERSION" || die "No release version passed."
+
+	# Sanity checks
+	require_clean_working_tree
+	require_local_branch_absent "$BRANCH"
+	git_remote_branch_exists "$ORIGIN/$BRANCH"
+
+	# Create tracking branch
+	git_checkout "$BRANCH" "$ORIGIN/$BRANCH" || die "Could not create branch '$BRANCH'."
+
+	note "- A new remote tracking branch '$BRANCH' was created"
+	note "- You are now on branch '$(git stats --long-current-branch)'"
+}
+
+rebase() {
+	USAGE="\
+git flow release rebase [-h] [-i] [-p] [<name|nameprefix>]
+
+Rebase <name> on <base_branch>
+
+    -h                 Show this help
+    -i                 Do an interactive rebase
+    --preserve-merges  Preserve merges
+"
+	local opts
+
+  for arg do
+    shift
+    case "$arg" in
+      -i) set_flag interactive; ;;
+      --preserve-merges) set_flag preservemerges; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+	# Parse arguments
+	parse_args "$@"
+
+  # Use current branch if no version is given
+  if empty "$VERSION"; then
+    BRANCH=$(git stats --long-current-branch)
+    VERSION=${BRANCH##$prefix}
+  fi
+
+	BASE_BRANCH=$(flow_get_branch_base $BRANCH)
+	BASE_BRANCH=${BASE_BRANCH:-$DEVELOP_BRANCH}
+
+	require_clean_working_tree
+	require_branch "$BRANCH"
+
+	git_local_branch_exists "$BASE_BRANCH" || die "The base '$BASE_BRANCH' doesn't exists locally or is not a branch. Can't rebase the release branch '$BRANCH'."
+
+	if flag interactive; then
+		opts="$opts -i"
+	fi
+	if flag preservemerges; then
+		opts="$opts -p"
+	fi
+	git rebase $opts "$BASE_BRANCH"
+}
+
+delete() {
+	USAGE="\
+git flow release delete [-h] [-f] [-r] <name>
+
+Delete the given release branch
+
+    -h          Show this help
+    --remote    Delete remote branch
+"
+	local current_branch
+
+	# Parse arguments
+	parse_args "$@"
+
+	! empty "$VERSION" || die "No version passed."
+
+	# Sanity checks
+	require_branch "$BRANCH"
+
+	BASE_BRANCH=$(flow_get_branch_base $BRANCH)
+	BASE_BRANCH=${BASE_BRANCH:-$DEVELOP_BRANCH}
+
+	current_branch=$(git stats --long-current-branch)
+	# We can't delete a branch we are on, switch to the develop branch.
+	if equals "$BRANCH" "$current_branch"; then
+		require_clean_working_tree
+		if git_local_branch_exists "$BASE_BRANCH"; then
+			git_checkout "$BASE_BRANCH"
+		else
+			git_checkout "$DEVELOP_BRANCH" || die "Could not check out branch '$DEVELOP_BRANCH'."
+		fi
+	fi
+
+	if ( git_is_branch_merged_into "$BRANCH" "$MASTER_BRANCH" && git_is_branch_merged_into "$BRANCH" "$BASE_BRANCH" ); then
+		git branch -d "$BRANCH" || die "Could not delete the $BRANCH."
+		if flag remote; then
+			git push "$ORIGIN" :"$BRANCH" || die "Could not delete the remote $BRANCH in $ORIGIN."
+		fi
+	else
+		die "Release branch '$BRANCH' has been not been merged in branch '$MASTER_BRANCH' and/or branch '$BASE_BRANCH'."
+	fi
+
+	flow_remove_branch_section "$BRANCH"
+
+	note "- Release branch '$BRANCH' has been deleted."
+	flag remote && note "- Release branch '$BRANCH' in '$ORIGIN' has been deleted."
+	note "- You are now on branch '$(git stats --long-current-branch)'"
 }

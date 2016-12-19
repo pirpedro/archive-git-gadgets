@@ -157,6 +157,29 @@ git_is_clean_working_tree() {
 	return 0
 }
 
+#
+# git_fetch_branch()
+#
+# $1 Origin - Where to fetch from
+# $2 Branch - Which branch to fetch
+#
+# This fetches the given branch from the given origin.
+# Instead of storing it in FETCH_HEAD it will be stored in
+# refs/remotes/<origin>/<branch>
+#
+git_fetch(){
+  local origin branch
+  [ -n "$1" ] || die "No origin passed."
+  [ -n "$2" ] || die "No branch passed."
+  origin="$1"
+  branch="$2"
+  if git_remote_branch_exists "$origin/$branch"; then
+    git fetch -q "$origin" "$branch":refs/remotes/"$origin"/"$branch" || die "Could not fetch $branch from $origin."
+  else
+      die "Branch $origin/$branch not exists."
+  fi
+}
+
 git_checkout(){
   local branch current_branch
   [ -n "$1" ] || die "git_checkout: No branch name passed."
@@ -205,6 +228,21 @@ git_compare_refs() {
 	else
 		return 0
 	fi
+}
+
+#
+# git_is_branch_merged_into()
+#
+# Checks whether branch $1 is successfully merged into $2
+#
+git_is_branch_merged_into() {
+	local merge_hash base_hash
+
+	merge_hash=$(git merge-base "$1"^{} "$2"^{})
+	base_hash=$(git rev-parse "$1"^{})
+
+	# If the hashes are equal, the branches are merged.
+	[ "$merge_hash" = "$base_hash" ]
 }
 
 git_editor() {
