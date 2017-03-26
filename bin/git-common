@@ -33,7 +33,7 @@ gadgets_bump_is_initialized(){
 }
 
 git_remote_exists(){
-  git remote | grep origin > /dev/null
+  git remote | grep $ORIGIN > /dev/null
 }
 
 git_local_branch_exists(){
@@ -93,14 +93,20 @@ git_remote_branch_delete(){
 ADD_ARRAY=()
 git_add(){
   [ "$#" != 0 ] || die "No files to be added."
-  git add "$@" >/dev/null && ADD_ARRAY+=("$@")
+  git add "$@" >/dev/null 2>&1 && ADD_ARRAY+=("$@")
 }
 
 git_commit(){
   [ -n "$1" ] || die "No extension name passed."
   [ -n "$2" ] || die "No message passed."
-  git commit -m "[$1] $2" ${ADD_ARRAY[*]} >/dev/null
+  git commit -m "[$1] $2" ${ADD_ARRAY[*]} >/dev/null 2>&1
   ADD_ARRAY=()
+}
+
+git_has_commit(){
+  [ -n "$1" ] || die "No extension name passed."
+  [ -n "$2" ] || die "No message passed."
+  ! git_is_empty_repo && ! empty_output git log --grep="\[$1\] $2"
 }
 
 git_config_has_master(){
@@ -340,7 +346,7 @@ EOF
   export CURRENT_BRANCH="$master"
 
   if git_local_branch_exists "$master" && ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1 ; then
-    git symbolic-ref HEAD "refs/heads/$master"
+    git symbolic-ref HEAD "refs/heads/$master" >/dev/null 2>&1
   fi
 
   file="$(git stats --root-path)/README.md"
@@ -350,10 +356,13 @@ EOF
   local msg
   if flag new_gadgets_repo; then
     msg="Start using git gadgets."
+    if ! git_has_commit gadgets "$msg"; then
+      git_commit gadgets "$msg"
+    fi
   else
-    msg="Reconfiguring git gadgets."
+    git_commit gadgets "Reconfiguring git gadgets."
   fi
-  git_commit gadgets "$msg"
+
 
   git_checkout "$master"
 

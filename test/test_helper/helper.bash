@@ -16,7 +16,7 @@ load_lib() {
 
 load_lib bats-support
 load_lib bats-assert
-
+source "../bin/sh-common"
 setup(){
   if [ -d ~/tmp/git-gadgets-test ]; then
   find ~/tmp/git-gadgets-test -mindepth 1 -delete
@@ -24,7 +24,6 @@ setup(){
     mkdir -p ~/tmp/git-gadgets-test
   fi
   cd ~/tmp/git-gadgets-test && git init
-  touch ~/tmp/focona
   [ -f foca ] || touch foca
   git add foca && git commit -m "First commit"
 }
