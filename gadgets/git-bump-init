@@ -3,10 +3,8 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 
-source $(git stats --script-location $0)/git-bump-common
-
 default(){
-  local version_file_path changelog_file_path suggested_version current_version
+  local version_file_path changelog_file_path suggested_version current_version root_path recursive
   git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
 
   local prefix_suggestion new_version
@@ -42,7 +40,7 @@ default(){
   note "Starting git bump configuration!"
 
   # Create version file if not exist.
-  local root_path=$(git stats --root-path)
+  root_path=$(git stats --root-path)
 
   version_file_path=".version"
   if ! git_get bump.path.version >/dev/null 2>&1 && [ ! -f "$version_file_path" ]; then
@@ -64,7 +62,7 @@ default(){
 
 
   if [ ! -f $root_path/$version_file_path ]; then
-    mkdir -p $(dirname "$root_path/$version_file_path")
+    mkdir -p "$(dirname $root_path/$version_file_path)"
     touch "$root_path/$version_file_path"
     note "Created empty __${version_file_path}__ in repository."
     set_flag haschanges
@@ -102,7 +100,7 @@ default(){
   fi
 
   if [ ! -f $root_path/$changelog_file_path ]; then
-    mkdir -p $(dirname "$root_path/$changelog_file_path")
+    mkdir -p "$(dirname $root_path/$changelog_file_path)"
     touch "$root_path/$changelog_file_path"
     note "Created empty __${changelog_file_path}__ in repository."
     set_flag haschanges
@@ -111,7 +109,7 @@ default(){
   export CHANGELOG_FILE="$root_path/$changelog_file_path"
   ! flag haschanges || git_add "$root_path/$changelog_file_path"
 
-  local recursive=$(git_get bump.recursive);
+  recursive=$(git_get bump.recursive);
   recursive=${recursive:-$FLAG_TRUE}
   if ! git_get bump.recursive >/dev/null 2>&1 || flag force; then
     flag defaults || ask_boolean "Recursively replace version number in project files?"

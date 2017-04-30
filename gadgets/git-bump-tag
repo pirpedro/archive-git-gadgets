@@ -2,14 +2,12 @@
 
 #git script variables
 SUBDIRECTORY_OK="yes"
-
-read -r -d '' USAGE <<'EOF'
+USAGE=`cat << EOF
 tag
 
   Create or update current version tag.
-EOF
+EOF`
 
-source $(git stats --script-location $0)/git-bump-common
 default(){
   local version version_index tag_name
   for arg do

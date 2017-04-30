@@ -1,27 +1,34 @@
 #!/bin/bash
 
-source $(git stats --script-location $0)/sh-common
+BASEDIR=$(dirname "${BASH_SOURCE[0]}")
+# shellcheck source=gadgets/sh-common
+source $BASEDIR/sh-common
 #source $(git --exec-path)/git-sh-setup
 
-parse_before_config(){
-    echo "$1" | sed 's/\//-/g'
+parse_config_key(){
+    echo "$1" | sed 's%/%-%g'
 }
 
-git_get(){ git config --get --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1); }
-git_set(){
-  git config --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1) "$2";
+git_config(){
+  local config_file
+  config_file="$(git stats --root-path)"/.git/gadgets
+  [ -f $config_file ] || touch $config_file
+  git config --file=$config_file "$@"
 }
-git_unset(){ git config --unset --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1); }
-git_unset_all(){ git config --unset-all --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1);}
-git_remove_section(){ git config --file $(git stats --root-path)/.git/gadgets --remove-section $(parse_before_config $1); }
+
+git_get(){ git_config --get "$(parse_config_key $1)"; }
+git_set(){ git_config "$(parse_config_key $1)" "$2"; }
+git_unset(){ git config --unset "$(parse_config_key $1)"; }
+git_unset_all(){ git config --unset-all "$(parse_config_key $1)"; }
+git_remove_section(){ git config --remove-section "$(parse_config_key $1)"; }
 
 gadgets_is_initialized(){
-  git rev-parse --git-dir >/dev/null 2>&1 && $(git_get core.master >/dev/null 2>&1)
+  git rev-parse --git-dir >/dev/null 2>&1 && git_get core.master >/dev/null 2>&1
 }
 
 git_is_initialized(){
   gadgets_is_initialized && \
-  $(git config --get-regexp --file $(git stats --root-path)/.git/gadgets $(parse_before_config $1) >/dev/null 2>&1)
+  git_config --get-regexp "$(parse_config_key $1)" >/dev/null 2>&1
 }
 
 gadgets_flow_is_initialized(){
@@ -37,52 +44,52 @@ git_remote_exists(){
 }
 
 git_local_branch_exists(){
-  [ -n "$1" ] || die "git_local_branch_exists: No branch name passed."
-  [ -n "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)" ]
+  ! empty "$1" || die "git_local_branch_exists: No branch name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)"
 }
 
 git_remote_branch_exists(){
-  [ -n "$1" ] || die "git_remote_branch_exists: No branch name passed."
-  [ -n "$(git for-each-ref --format='%(refname:short)' refs/remotes/$1)" ]
+  ! empty "$1" || die "git_remote_branch_exists: No branch name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/remotes/$1)"
 }
 
 git_branch_exists(){
-  [ -n "$1" ] || die "git_branch_exists: No branch name passed."
+  ! empty  "$1" || die "git_branch_exists: No branch name passed."
   git_local_branch_exists "$1" || git_remote_branch_exists "$ORIGIN/$1"
 }
 
 git_tag_exists(){
-  [ -n "$1" ] || die "No tag name passed."
-  [ -n "$(git for-each-ref --format='%(refname:short)' refs/tags/$1)" ]
+  ! empty "$1" || die "No tag name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/tags/$1)"
 }
 
 git_remote_tag_exists(){
-  [ -n "$1" ] || die "No tag name passed."
+  ! empty "$1" || die "No tag name passed."
   if git_remote_exists && empty_output git ls-remote refs/tags/$1; then
-    return 1
+    return ${FLAG_FALSE}
   else
-    return 0
+    return ${FLAG_TRUE}
   fi
 }
 
 git_tag_delete(){
-  [ -n "$1" ] || die "git_tag_delete: No tag name."
+  ! empty "$1" || die "git_tag_delete: No tag name."
   git_local_tag_delete "$1"
   git_remote_tag_delete "$1"
 }
 
 git_local_tag_delete(){
-  [ -n "$1" ] || die "git_local_tag_delete: No tag name."
+  ! empty "$1" || die "git_local_tag_delete: No tag name."
   git tag -d "$1" >/dev/null 2>&1
 }
 
 git_remote_tag_delete(){
-  [ -n "$1" ] || die "git_remote_tag_delete: No tag name."
+  ! empty -n "$1" || die "git_remote_tag_delete: No tag name."
   ! git_remote_tag_exists "$1" || git push origin --delete "$1" >/dev/null 2>&1
 }
 
 git_remote_branch_delete(){
-  [ -n "$1" ] || die "git_remote_branch_delete: No branch name passed."
+  ! empty "$1" || die "git_remote_branch_delete: No branch name passed."
   if git_remote_branch_exists "$ORIGIN/$1"; then
     git push "$ORIGIN" :"$1" || die "Not possible to delete remote branch $1 in $origin"
   else
@@ -97,26 +104,26 @@ git_add(){
 }
 
 git_commit(){
-  [ -n "$1" ] || die "No extension name passed."
-  [ -n "$2" ] || die "No message passed."
+  ! empty "$1" || die "No extension name passed."
+  ! empty "$2" || die "No message passed."
   git commit -m "[$1] $2" ${ADD_ARRAY[*]} >/dev/null 2>&1
   ADD_ARRAY=()
 }
 
 git_has_commit(){
-  [ -n "$1" ] || die "No extension name passed."
-  [ -n "$2" ] || die "No message passed."
+  ! empty "$1" || die "No extension name passed."
+  ! empty "$2" || die "No message passed."
   ! git_is_empty_repo && ! empty_output git log --grep="\[$1\] $2"
 }
 
 git_config_has_master(){
-  local master=$(git_get core.master)
-  [ "$master" != "" ] && git_local_branch_exists "$master"
+  local master="$(git_get core.master)"
+  ! empty "$master" && git_local_branch_exists "$master"
 }
 
 git_config_has_develop(){
-  local develop=$(git_get flow.branch.develop)
-  [ "$develop" != "" ] && git_local_branch_exists "$develop"
+  local develop="$(git_get flow.branch.develop)"
+  ! empty "$develop" && git_local_branch_exists "$develop"
 }
 
 gadgets_load_settings(){
@@ -147,7 +154,7 @@ git_branchs_with_prefix(){
 }
 
 git_is_empty_repo(){
-  [ $(find .git/objects -type f -print -quit | wc -c) -eq 0 ]
+  [ "$(find .git/objects -type f -print -quit | wc -c)" -eq 0 ]
 }
 
 git_is_clean_working_tree() {
@@ -280,11 +287,10 @@ gadgets_init(){
   gadgets_is_initialized || set_flag new_gadgets_repo
 
   if gadgets_is_initialized && ! flag force; then
-    warn -f "Git gadgets is already initialized."
-    exit 1
+    die "Git gadgets is already initialized."
   fi
 
-  flag force || flag defaults ||  cat <<EOF
+  flag force || flag defaults || cat <<EOF
 *   _____          _____   _____ ______ _______ _____   *
 *  / ____|   /\   |  __ \ / ____|  ____|__   __/ ____|  *
 * | |  __   /  \  | |  | | |  __| |__     | | | (___    *
@@ -317,13 +323,13 @@ EOF
     master=$(git_get core.master)
   else
     branch_count=$(git_local_branches | wc -l)
-    if [ "$branch_count" -eq 0 ]; then
+    if equals "$branch_count" 0; then
       note "No branches exists. We need to create it."
       suggestion=$(git_get core.master || echo master)
     else
       note "You have these branchs:"
       flag defaults || git_local_branches | sed 's/^.*$/   - &/g'
-      suggestion=
+      suggestion=""
 			for mybranch in $(git_get core.master) 'production' 'main' 'master'; do
 				if git_local_branch_exists "$mybranch"; then
 					suggestion="$mybranch"
@@ -363,9 +369,7 @@ EOF
     git_commit gadgets "Reconfiguring git gadgets."
   fi
 
-
   git_checkout "$master"
-
   note "Git gadgets initialized."
 }
 

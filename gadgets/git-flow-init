@@ -3,8 +3,6 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 
-source $(git stats --script-location $0)/git-common
-
 default(){
   local config_scope="--local";
   for arg do

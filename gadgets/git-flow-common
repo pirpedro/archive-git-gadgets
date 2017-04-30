@@ -1,10 +1,8 @@
 #!/bin/bash
 
-source $(git stats --script-location $0)/git-common
-
 #Set config values for a specific branch
 flow_set_branch_base(){
-  local branch key value
+  local branch value
   branch=$1
   value=$2
   git_set "branch.$branch.base" $value
@@ -19,11 +17,11 @@ flow_unset_branch_base(){
 flow_remove_branch_section(){
   local branch
   branch="$1"
-  $(git_remove_section "branch.$branch" 2>&1)
+  git_remove_section "branch.$branch" 2>&1
 }
 
 flow_get_branch_base(){
-  local branch key
+  local branch
   branch=$1
   git_get "branch.$branch.base"
 }

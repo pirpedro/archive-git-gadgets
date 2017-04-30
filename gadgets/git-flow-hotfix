@@ -2,8 +2,6 @@
 
 SUBDIRECTORY_OK="yes"
 
-source $(git stats --script-location $0)/git-common
-
 git_get flow.prefix.hotfix >/dev/null 2>&1 || die "Flow is not using hotfix branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.hotfix)
 
@@ -59,7 +57,7 @@ Lists all local hotfix branches
     exit 1
   fi
   current_branch=$(git stats --long-current-branch)
-  for branch in $feature_branchs; do
+  for branch in $hotfix_branchs; do
     base=$(git merge-base "$branch" "$MASTER_BRANCH")
     branch_hash=$(git rev-parse "$branch")
 		master_hash=$(git rev-parse "$MASTER_BRANCH")

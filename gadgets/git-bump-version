@@ -34,8 +34,6 @@ version [OPTIONS] [INCREMENT] [BRANCH]
     git bump [version] [--branch=release-] [--no-tag] [-r] [--version=2.7.0]
 EOF
 
-source $(git stats --script-location $0)/git-bump-common
-
 default(){
   local target_branch latest_hash current_version bump_version new_branch
 

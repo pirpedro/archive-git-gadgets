@@ -2,8 +2,6 @@
 
 SUBDIRECTORY_OK="yes"
 
-source $(git stats --script-location $0)/git-flow-common
-
 git_get flow.prefix.feature >/dev/null 2>&1 || die "Flow is not using feature branches. Use 'git flow init -f' to reconfigure."
 prefix=$(git_get flow.prefix.feature)
 
@@ -237,7 +235,7 @@ finish_cleanup(){
       git_checkout "$base" || die "Could not checkout $base."
     fi
 
-    git branch -d "$BRANCH" && flow_remove_branch_section "$BRANCU"
+    git branch -d "$BRANCH" && flow_remove_branch_section "$BRANCH"
   fi
 
   if flag push; then

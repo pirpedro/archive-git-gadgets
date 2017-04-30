@@ -1,27 +1,25 @@
 #!/bin/bash
 
-source $(git stats --script-location $0)/git-common
-
 NOW="$(date +'%B %d, %Y')"
 
 bump_retrieve_current_version(){
-  [ -f "$VERSION_FILE" ] && ! empty $VERSION_FILE && cat "$VERSION_FILE"
+  [ -f "$VERSION_FILE" ] && ! empty_file $VERSION_FILE && cat "$VERSION_FILE"
 }
 
 bump_get_tagname(){
-  [ -n "$1" ] || die "Parameter need to be passed."
+  ! empty "$1" || die "Parameter need to be passed."
   echo "$(git_get bump.prefix.tag)$1"
 }
 
 bump_tag_exists(){
-  [ -n "$1" ] || die "Parameter need to be passed."
+  ! empty "$1" || die "Parameter need to be passed."
   local tag_name
   tag_name=$(bump_get_tagname "$1")
   git_tag_exists $tag_name
 }
 
 bump_remote_tag_exists(){
-  [ -n "$1" ] || die "Parameter need to be passed."
+  ! empty "$1" || die "Parameter need to be passed."
   local tag_name
   tag_name=$(bump_get_tagname "$1")
   git_remote_tag_exists $tag_name
@@ -53,15 +51,12 @@ bump_suggest_version_number(){
 # Return a tag name or a commit hash that identifies the version.
 bump_version_index(){
   local version index
-  [ -n "$1" ] || die "bump_version_index: Version not passed."
+  ! empty "$1" || die "bump_version_index: Version not passed."
   version="$1"
-  echo "Find index to $version" >> ~/tmp/log
   if bump_tag_exists "$version"; then
     index=$(bump_get_tagname "$version")
-    echo "find tag: $index" >> ~/tmp/log
   else
     index=$(git log --all --pretty=format:"%H" --grep="\[bump-version\] $version" -n 1)
-    echo "find commit: $index" >> ~/tmp/log
   fi
   echo "$index"
 }
@@ -80,10 +75,8 @@ bump_changelog(){
     die "You need to pass at least the new version number."
   fi
 
-  ! empty "$TEMP_FILE" || die "Something is wrong. Reexecute 'git bump init'."
   [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
-  echo "$old_version to $new_version" >> ~/tmp/log
   new_version_index=$(bump_version_index "$new_version")
   new_version_index=${new_version_index:-"HEAD"} #if it's a new version, we dont´t have a version commit or tag yet.
   if ! empty "$old_version"; then
@@ -115,8 +108,8 @@ bump_changelog(){
         commit_time=`date -r $(git log --pretty=format:"%at" $upper_limit -n 1) +'%B %d, %Y'`
         version_format="$version"
       fi
+      TEMP_FILE=$(mktmp_file)
       echo "## $version_format ($commit_time)" > $TEMP_FILE
-      echo "git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit" >> ~/tmp/log
       git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit >> $TEMP_FILE
       echo "" >> $TEMP_FILE
       echo "" >> $TEMP_FILE
@@ -124,10 +117,10 @@ bump_changelog(){
   done
   cat $CHANGELOG_FILE >> $TEMP_FILE
   mv $TEMP_FILE $CHANGELOG_FILE
-  if flag interactive; then
-    ask_boolean "Now you can make adjustments to __${CHANGELOG_FILE##$(git stats --root-path)}__. Do you want? " "${FLAG_FALSE}"
-    ! check_boolean ${ask_answer} || git_editor $CHANGELOG_FILE
-  fi
+  ! flag interactive || {
+    ! ask_boolean "Now you can make adjustments to __${CHANGELOG_FILE##$(git stats --root-path)}__. Do you want? " "${FLAG_FALSE}" || \
+    git_editor $CHANGELOG_FILE
+  }
   git_add $CHANGELOG_FILE
 }
 
@@ -165,11 +158,8 @@ bump_compare_version(){
 
 bump_version_number(){
   local new_version current_version
-  if [ "$#" -eq 1 ]; then
-    new_version="$1"
-  else
-    die "Need to pass parameter."
-  fi
+  ! empty "$1" || die "Need to pass parameter."
+  new_version="$1"
   current_version=$(bump_retrieve_current_version)
 
   bump_compare_version "$new_version"
@@ -177,7 +167,7 @@ bump_version_number(){
   [ -f "$VERSION_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
   #In git init, even recursive set to true, the version file could be empty
-  if ! empty $VERSION_FILE && check_boolean "$(git_get bump.recursive)"; then
+  if ! empty_file $VERSION_FILE && check_boolean "$(git_get bump.recursive)"; then
     local files=($(git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md))
     sed -i "s/$current_version/$new_version/g" ${files[*]}
     git_add ${files[*]}

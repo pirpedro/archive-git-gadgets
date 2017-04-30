@@ -16,37 +16,35 @@ load_lib() {
 
 load_lib bats-support
 load_lib bats-assert
-source "../bin/sh-common"
-setup(){
-  if [ -d ~/tmp/git-gadgets-test ]; then
-  find ~/tmp/git-gadgets-test -mindepth 1 -delete
-  else
-    mkdir -p ~/tmp/git-gadgets-test
-  fi
-  cd ~/tmp/git-gadgets-test && git init
+source "../gadgets/sh-common"
+
+repo_name="git-gadgets-test"
+remote_repo_name="${repo_name}-remote"
+repo_location=~/tmp/$repo_name
+remote_location=~/tmp/$remote_repo_name
+
+init_remote_repo(){
+  [ -d "$remote_location" ] || mkdir -p "$remote_location"
+  cd "$remote_location" && git init --bare >/dev/null
+}
+
+init_empty_repo(){
+  local base_dir=$(dirname "$repo_location")
+  [ -d "$base_dir" ] || mkdir -p "$base_dir"
+  init_remote_repo && {
+    cd "$base_dir" && git clone "$remote_location" "$repo_name" >/dev/null 2>&1
+    cd "$repo_location" || exit 1
+  }
+}
+
+init_repo(){
+  init_empty_repo
+  cd "$repo_location" || exit 1
   [ -f foca ] || touch foca
-  git add foca && git commit -m "First commit"
-}
-
-assert_empty(){
-  if [[ -n $1 ]]; then
-      batslib_print_kv_single 5 'Value' "$1" \
-      | batslib_decorate 'value not empty' \
-      | fail
-  fi
-}
-
-assert_not_empty(){
-  if [[ ! -n "$1" ]]; then
-      batslib_print_kv_single 8 'Variable' "empty" \
-      | batslib_decorate 'value is empty' \
-      | fail
-  fi
+  git add foca && git commit -m "First commit." >/dev/null
 }
 
 assert_git_config_present(){
-  assert_not_empty "$1"
-  assert_not_empty "$2"
   local config_path
   config_path=$(git stats --root-path)/.git/gadgets
   if ! git config --get --file $config_path "$1">/dev/null 2>&1 ||
@@ -60,7 +58,6 @@ assert_git_config_present(){
 }
 
 assert_git_config_not_present(){
-  assert_not_empty "$1"
   local config_path
   config_path=$(git stats --root-path)/.git/gadgets
   if git config --get --file $config_path "$1">/dev/null 2>&1 &&
@@ -98,8 +95,8 @@ assert_git_bump_config(){
     esac
   done
   assert [ -e $version_file ]
-  assert [ -e $changelog_file && -s $changelog_file ]
-  assert_equal $(cat $version_file) $version
+  assert [ -e $changelog_file ] && [ -s $changelog_file ]
+  assert_equal "$(cat $version_file)" $version
   assert_git_config_present bump.path.version $version_file
   assert_git_config_present bump.path.changelog $changelog_file
   if [ "$recursive" == true ]; then
@@ -130,8 +127,8 @@ assert_git_flow_config(){
   assert_git_config_present flow.prefix.feature $feature_prefix
   assert_git_config_present flow.prefix.release $release_prefix
   assert_git_config_present flow.prefix.hotfix $hotfix_prefix
-  if [ bump -eq 0 ]; then
-    assert_git_bump_config
+  if [ $bump -eq 0 ]; then
+    assert_git_bump_config version=0.1.0
   fi
 
 }
