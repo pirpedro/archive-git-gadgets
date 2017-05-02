@@ -1,3 +1,6 @@
+## 1.2.0 (May 02, 2017)
+  - Structural refactor.
+
 ## 1.1.0 (April 29, 2017)
   - First commit
   - Test changes
