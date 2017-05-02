@@ -1,3 +1,6 @@
+## 1.3.0 (May 02, 2017)
+
+
 ## 1.2.0 (May 02, 2017)
   - Structural refactor.
 
