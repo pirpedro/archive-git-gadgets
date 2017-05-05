@@ -4,7 +4,7 @@
 SUBDIRECTORY_OK="yes"
 
 default(){
-  local version_file_path changelog_file_path suggested_version current_version root_path recursive
+  local version_file_path changelog_file_path suggested_version current_version root_path
   git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
 
   local prefix_suggestion new_version
@@ -108,19 +108,6 @@ default(){
   git_set bump.path.changelog "$changelog_file_path"
   export CHANGELOG_FILE="$root_path/$changelog_file_path"
   ! flag haschanges || git_add "$root_path/$changelog_file_path"
-
-  recursive=$(git_get bump.recursive);
-  recursive=${recursive:-$FLAG_TRUE}
-  if ! git_get bump.recursive >/dev/null 2>&1 || flag force; then
-    flag defaults || ask_boolean "Recursively replace version number in project files?"
-    flag defaults || recursive=${ask_answer}
-    if check_boolean $recursive; then
-      git_set bump.recursive true
-    else
-      git_set bump.recursive false
-    fi
-
-  fi
 
   local prefix_suggestion
 

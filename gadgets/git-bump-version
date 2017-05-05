@@ -21,12 +21,6 @@ version [OPTIONS] [INCREMENT] [BRANCH]
 
     --no-tag            Don't create tag for bumped version.
 
-    -r | --recursive    Recursively change version number in any
-                        project file independent of initial
-                        configuration.
-
-    -v                  Show current version number.
-
     --version           Specify your own version number for the bump.
 
   USAGE
@@ -43,10 +37,8 @@ default(){
       major|minor|patch) INCREMENT="$arg"; ;;
       --branch) set_flag branch ;;
       --branch=*) set_flag branch; new_branch=${arg##--branch=}; ;;
-      -i|--interactive) set_global_flag interactive; verbosity on; ;;
-      --no-tag) echo "passou aqui"; set_global_flag no_tag; ;;
-      -r|--recursive) set_global_flag recursive; ;;
-      -v) cat $VERSION_FILE; exit; ;;
+      -i|--interactive) set_flag interactive; verbosity on; ;;
+      --no-tag) echo "passou aqui"; set_flag no_tag; ;;
       --version=*)
         PARAM_VERSION=${arg##--version=}
         ! empty $PARAM_VERSION || die "You need to pass version number"
@@ -56,6 +48,7 @@ default(){
     esac
   done
 
+  cd "$(git stats --root-path)" || die "Couldn't access projet root folder."
   # set the git bump target branch.
   if ! empty "$1" && ! startswith "$1" "-"; then target_branch="$1"; else target_branch=$(git stats --long-current-branch); fi
   latest_hash=`git log --pretty=format:'%h' -n 1`

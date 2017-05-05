@@ -32,11 +32,15 @@ teardown(){
   assert_git_bump_config version=0.1.0
 }
 
+@test "[Bump] Init - not empty repo" {
+  init_repo
+  run git_bump_init
+  assert_git_bump_config version=0.1.0
+}
 @test "[Bump] Try to init again" {
   init_empty_repo
   git_bump_init
-  run git bump init
-  assert_failure
+  run git bump init && assert_failure
 }
 
 @test "[Bump] Init - clean repo - default flag" {
@@ -47,15 +51,15 @@ teardown(){
 
 @test "[Bump] Init - clean repo - custom values" {
   init_empty_repo
-  printf "${git_gadget_init_options}customversion\nchange.md\nno\ncustom-tag\nno\n" | run git bump init
-  assert_git_bump_config version-file=customversion,changelog-file=change.md,version=0.1.0,recursive=false,tag=custom-tag
+  printf "${git_gadget_init_options}customversion\nchange.md\ncustom-tag\nno\n" | run git bump init
+  assert_git_bump_config version-file=customversion,changelog-file=change.md,version=0.1.0,tag=custom-tag
 }
 
 @test "[Bump] Init - use argument force" {
   init_empty_repo
   git_bump_init
-  printf "customversion\nchange.md\nno\ncustom-tag\nno\n" | run git bump init -f
-  assert_git_bump_config version-file=customversion,changelog-file=change.md,version=0.1.0,recursive=false,tag=custom-tag
+  printf "customversion\nchange.md\ncustom-tag\nno\n" | run git bump init -f
+  assert_git_bump_config version-file=customversion,changelog-file=change.md,version=0.1.0,tag=custom-tag
 }
 
 #@test "[Bump] Init - a previously configured repository" {

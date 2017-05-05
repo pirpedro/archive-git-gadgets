@@ -166,14 +166,12 @@ bump_version_number(){
   [ ! "$?" -eq 1 ] || return 1; #same version, do nothing
   [ -f "$VERSION_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
 
-  #In git init, even recursive set to true, the version file could be empty
-  if ! empty_file $VERSION_FILE && check_boolean "$(git_get bump.recursive)"; then
-    local files=($(git grep -lw "$current_version" -- `git stats --root-path` | grep -v CHANGELOG.md))
-    sed -i "s/$current_version/$new_version/g" ${files[*]}
-    git_add ${files[*]}
-  else
-    echo $new_version > $VERSION_FILE
-    git_add $VERSION_FILE
+  echo $new_version > $VERSION_FILE
+  git_add $VERSION_FILE
+  if git_get bump.track >/dev/null 2>&1; then
+    local tracked=($(git_get bump.track))
+    sed -i "s/$current_version/$new_version/g" ${tracked[*]}
+    git_add ${tracked[*]}
   fi
   note "Set version number to __${new_version}__."
 }

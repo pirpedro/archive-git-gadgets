@@ -10,21 +10,31 @@ init(){
   # if it was not possible to execute gadgets_init, exit.
   gadgets_init "$@" || exit 1;
 
-  if ! gadgets_flow_is_initialized; then
-    printf "\n\n"
-    note -f "Git flow is an extension that handles a success branching model design."
-    ! ask_boolean "Do you want to configure __git flow__ to this repository?" || {
-      git flow init && set_flag try_flow
-    }
-  fi
-
-  #git flow also try to configure git bump, so we don't need to ask again
-  #if git flow wa initialized in this shell session.
-  if ! flag try_flow && ! gadgets_bump_is_initialized; then
+  if ! gadgets_bump_is_initialized; then
     printf "\n\n"
     note -f "Git bump is an extension that bump version to your project."
-    ! ask_boolean "Do you want to configure __git bump__ to this repository?" || git bump init
+    ! ask_boolean "Do you want to configure __git bump__ to this repository?" || git bump init "$@"
   fi
+
+  if ! gadgets_flow_is_initialized; then
+    printf "\n\n"
+    note -f "__Git flow__ is __petervanderdoes/gitflow-avh__ github project."
+    note -f "It's an extension that handles a success branching model design."
+    if flag defaults || ask_boolean "Do you want to configure __git flow__ to this repository?"; then
+      echo foca
+      if [ ! -f /usr/local/bin/git-flow ]; then
+        wget --no-check-certificate -q https://raw.githubusercontent.com/petervanderdoes/gitflow-avh/develop/contrib/gitflow-installer.sh && sudo bash gitflow-installer.sh install develop;
+        rm gitflow-installer.sh; sudo rm -rf gitflow;
+      fi
+      echo foca2
+      printf "$MASTER_BRANCH\n$DEVELOP_BRANCH\n\n" | git flow init && {
+        note -f "Git flow installed in __/usr/local__ with default values."
+        note -f "Execute 'git flow init -f' to change any configuration."
+      }
+
+    fi
+  fi
+
 }
 
 gadgets_load_settings

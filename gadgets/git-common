@@ -122,7 +122,7 @@ git_config_has_master(){
 }
 
 git_config_has_develop(){
-  local develop="$(git_get flow.branch.develop)"
+  local develop="$(git_get core.develop)"
   ! empty "$develop" && git_local_branch_exists "$develop"
 }
 
@@ -130,6 +130,7 @@ gadgets_load_settings(){
   if gadgets_is_initialized; then
     export ORIGIN=$(git_get core.origin || echo origin)
     export MASTER_BRANCH=$(git_get core.master)
+    export DEVELOP_BRANCH=$(git_get core.develop)
     export CURRENT_BRANCH=$(git stats --long-current-branch)
   fi
 }
@@ -268,12 +269,12 @@ git_editor() {
 }
 
 gadgets_init(){
-  local master branch_count suggestion
+  local master develop branch_count suggestion
   for arg do
     shift
     case "$arg" in
-      --defaults) set_global_flag defaults; ;;
-      -f|--force) set_global_flag force; ;;
+      --defaults) set_flag defaults; ;;
+      -f|--force) set_flag force; ;;
       *) set -- "$@" "$arg"; ;;
     esac
   done
@@ -370,6 +371,45 @@ EOF
   fi
 
   git_checkout "$master"
+
+  if flag defaults || ask_boolean "Create a develop branch to separate developing and production environments?"; then
+    if git_config_has_develop && ! flag force; then
+      develop=$(git_get core.develop)
+    else
+      branch_count=$(git_local_branches | grep -v "^${master}\$" | wc -l)
+      if equals "$branch_count" 0; then
+        note "No branches exists. We need to create it."
+        suggestion=$(git_get core.develop || echo develop)
+      else
+        note "You have these branchs:"
+        flag defaults || git_local_branches | sed 's/^.*$/   - &/g'
+        suggestion=""
+        for mybranch in $(git_get core.develop) 'develop' 'integration' 'development'; do
+          if git_local_branch_exists "$mybranch"; then
+            suggestion="$mybranch"
+            break
+          fi
+        done
+      fi
+
+      if flag defaults; then
+        develop=$suggestion
+      else
+        ask --default="$suggestion" --free-answer --question="Choose branch name for development (develop) branch"
+        develop=${ask_answer}
+      fi
+    fi
+
+    if [ "$master" = "$develop" ]; then
+			die "Production and integration branches should differ."
+		fi
+
+    git_set core.develop "$develop"
+    git_checkout "$develop" && {
+      export DEVELOP_BRANCH="$develop"
+      export CURRENT_BRANCH="$develop"
+    }
+  fi
   note "Git gadgets initialized."
 }
 

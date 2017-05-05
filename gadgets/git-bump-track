@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+USAGE=`cat << EOF
+  Track file.
+EOF`
+
+require_tracked(){
+  is_tracked "$1" || die "$1 not tracked. "
+}
+
+require_not_tracked(){
+  ! is_tracked "$1" || die "$1 already tracked."
+}
+
+is_tracked(){
+  ! empty "$1" || die "No argument passed to is_tracked."
+  for file in $(git_get bump.track); do
+    if equals "$file" "$1"; then
+      return ${FLAG_TRUE}
+    fi
+  done
+  return ${FLAG_FALSE}
+}
+
+untrack(){
+  ! empty "$1" || die "No argument passed to track function."
+  local untrack_file="$1" new_tracked=()
+  if git_get bump.track >/dev/null 2>&1; then
+    for file in $(git_get bump.track); do
+      if ! equals "$file" "$untrack_file"; then
+        new_tracked+=("$file")
+      fi
+    done
+    git_set bump.track "$(echo "${new_tracked[*]}")"
+  fi
+}
+
+track(){
+  ! empty "$1" || die "No argument passed to track function."
+  local track_file cur_tracked=()
+  track_file="$1"
+  if git_get bump.track >/dev/null 2>&1; then
+    cur_tracked+=($(git_get bump.track))
+  fi
+  cur_tracked+=("$track_file")
+  git_set bump.track "$(echo "${cur_tracked[*]}")"
+}
+
+default(){
+  local version candidate
+  for arg do
+    shift
+    case "$arg" in
+      -d|--delete) set_flag untrack ;;
+      *) set -- "$@" "$arg"         ;;
+    esac
+  done
+
+  empty "$1" || candidate=$(git stats --absolute-path $1)
+  cd "$(git stats --root-path)" || die "Can't access root project folder."
+
+  if flag untrack; then
+    ! empty "$candidate" || die "No file passed to untrack."
+    untrack "$candidate"
+    exit
+  fi
+
+  version=$(bump_retrieve_current_version)
+  if ! empty "$candidate"; then
+    require_not_tracked "$candidate"
+    [ -f "$candidate" ] || die "$1 is not a regular file."
+    #check if file has version number
+    if git grep -lw "$version" -- "$candidate" >/dev/null || \
+        ask_boolean "__$1__ doesn't contains version number. Keep track anyway?"; then
+      track "$candidate"
+    fi
+  else
+    local exclude_files=( $(git stats --absolute-path $VERSION_FILE) $(git stats --absolute-path $CHANGELOG_FILE))
+    exclude_files+=($(git_get bump.track))
+    local OLDIFS=$IFS
+    local IFS='|'
+    files=($(git grep -lw "$version" -- "$(git stats --root-path)" | grep -v "$(echo "${exclude_files[*]}" | sed -e 's/|/\\|/g' )"))
+    IFS=$OLDIFS
+    ! equals ${#files[@]} 0 || die "No new files to track."
+    for file in ${files[*]}; do
+      echo "$file"
+      if ask_boolean "__$1__ has the current __${version}__ version pattern. Track it?"; then
+        track "$file"
+      fi
+    done
+  fi
+}

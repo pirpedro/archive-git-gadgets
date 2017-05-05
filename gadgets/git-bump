@@ -32,13 +32,23 @@ load_settings(){
   fi
 }
 
-if equals "$1" "init" || equals "$1" "version" || equals "$1" "tag" || equals "$1" "revert-to"; then
-  flow="$1"; shift;
-else
-  flow="version"
-fi
+actions="init version tag track revert-to"
+extglob_on
+case "$1" in
+  $(case_one "$actions")) flow="$1"; shift ;;
+  *) flow="version"                        ;;
+esac
+extglob_restore
 
 load_settings
+
+for arg; do
+  shift
+  case "$arg" in
+    -v) [ ! -f "$VERSION_FILE" ] || cat $VERSION_FILE; exit ;;
+    *) set -- "$@" "$arg"                                   ;;
+  esac
+done
 
 BUMP_FILE=$(location $0)/../gadgets/git-bump-$flow
 if [[ -e $BUMP_FILE ]]; then

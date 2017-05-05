@@ -69,20 +69,44 @@ assert_git_config_not_present(){
 }
 
 assert_git_gadgets_config(){
-  local master_branch
+  local master_branch develop_branch
   master_branch="master"
+  develop_branch="develop"
   for option in $(echo "$1" | tr "," "\n"); do
     case "$option" in
-      master=* ) master_branch=${option##master=}; ;;
+      master=* ) master_branch=${option##master=} ;;
+      develop=* ) develop_branch=${option##develop=}
     esac
   done
 
+  echo "branch $master_branch"
   assert_git_config_present core.master $master_branch
+  if ! empty $develop_branch; then
+    assert_git_config_present core.develop $develop_branch
+  fi
+}
+
+assert_git_flow_config(){
+  local master_branch develop_branch config_path
+  master_branch="master"
+  develop_branch="develop"
+  for option in $(echo "$1" | tr "," "\n"); do
+    case "$option" in
+      master=* ) master_branch=${option##master=} ;;
+      develop=* ) develop_branch=${option##develop=}
+    esac
+  done
+
+  config_path=$(git stats --root-path)/.git/config
+  assert git config --get --file $config_path gitflow.branch.master>/dev/null 2>&1
+  assert git config --get --file $config_path gitflow.branch.develop>/dev/null 2>&1
+  assert_equal "$(git config --get --file $config_path gitflow.branch.master)" "$master_branch"
+  assert_equal "$(git config --get --file $config_path gitflow.branch.develop)" "$develop_branch"
 }
 
 assert_git_bump_config(){
-  local version version_file changelog_file recursive tag
-  version_file=".version"; changelog_file="CHANGELOG.md"; recursive=true; tag="v";
+  local version version_file changelog_file tag
+  version_file=".version"; changelog_file="CHANGELOG.md"; tag="v";
 
   assert_git_gadgets_config
   for option in $(echo "$1" | tr "," "\n"); do
@@ -90,78 +114,33 @@ assert_git_bump_config(){
       version-file=* ) version_file=${option##version-file=} ;;
       changelog-file=*) changelog_file=${option##changelog-file=} ;;
       version=* ) version=${option##version=}; ;;
-      recursive=* ) recursive=${option##recursive=}; ;;
       tag=* ) tag=${option##tag=}; ;;
     esac
   done
   assert [ -e $version_file ]
   assert [ -e $changelog_file ] && [ -s $changelog_file ]
   assert_equal "$(cat $version_file)" $version
+  run cat $changelog_file
+  assert_output --partial "## $version"
+  assert_output --partial "## 0.1.0"
   assert_git_config_present bump.path.version $version_file
   assert_git_config_present bump.path.changelog $changelog_file
-  if [ "$recursive" == true ]; then
-    assert_git_config_present bump.recursive $recursive
-  else
-    assert_git_config_present bump.recursive false
-  fi
   assert_git_config_present bump.prefix.tag $tag
 }
 
-assert_git_flow_config(){
-  local develop_branch feature_prefix release_prefix hotfix_prefix bump
-  develop_branch="develop"; feature_prefix="feature/"; release_prefix="release/"
-  hotfix_prefix="hotfix/"; bump=1;
 
-  assert_git_gadgets_config
-  for option in $(echo "$1" | tr "," "\n"); do
-    case "$option" in
-      develop=* ) develop_branch=${option##develop=} ;;
-      feature=*) feature_prefix=${option##feature=} ;;
-      release=*) release_prefix=${option##release=} ;;
-      hotfix=*) hotfix_prefix=${option##hotfix=} ;;
-      bump=* ) bump=${option##bump=} ;;
-    esac
-  done
-
-  assert_git_config_present flow.branch.develop $develop_branch
-  assert_git_config_present flow.prefix.feature $feature_prefix
-  assert_git_config_present flow.prefix.release $release_prefix
-  assert_git_config_present flow.prefix.hotfix $hotfix_prefix
-  if [ $bump -eq 0 ]; then
-    assert_git_bump_config version=0.1.0
-  fi
-
-}
 
 # Branch master name
-git_gadget_init_options="master\n"
+git_gadget_init_options="master\nyes\ndevelop\n"
 
 #
 # version file path
 # Changelog path
-# recursive?
 # tag prefix
 # change changelog file?
 #
-git_bump_init_options=".version\nCHANGELOG.md\nyes\nv\nno\n"
-
-#
-# Branch develop name
-# Use feature?
-# Feature prefix
-# Use release?
-# Release prefix
-# Use hotfix?
-# Hotfix prefix
-# Configure git bump?
-#
-git_flow_init_options="develop\nyes\n\nyes\n\nyes\n\nno\n"
-
+git_bump_init_options=".version\nCHANGELOG.md\nv\nno\n"
 
 git_bump_init(){
   git bump init --defaults
-}
-
-git_flow_init(){
-  git flow init --defaults
 }

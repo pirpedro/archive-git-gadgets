@@ -8,6 +8,8 @@ read -r -d '' USAGE <<'EOF'
 
       OPTIONS
 
+      --absolute-path               Real (relative to git root) location.
+
       --current-branch              Show the last part of the current branch name.
 
       --long-current-branch         Show the current branch full name
@@ -20,6 +22,37 @@ read -r -d '' USAGE <<'EOF'
       --script-location             Show the real location of a passed script file.
 EOF
 
+get_location(){
+  case $(uname -s) in
+  Linux)
+    echo $(dirname "$(readlink -e "$1")")
+    ;;
+  FreeBSD|OpenBSD|NetBSD)
+    echo $(dirname "$(realpath "$1")")
+    ;;
+  Darwin)
+    PRG="$1"
+    while [ -h "$PRG" ]; do
+      link=$(readlink "$PRG")
+      if expr "$link" : '/.*' > /dev/null; then
+        PRG="$link"
+      else
+        PRG="$(dirname "$PRG")/$link"
+      fi
+    done
+    echo "$(dirname $PRG)"
+    ;;
+  *MINGW*)
+    echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
+    pwd () {
+      builtin pwd -W
+    }
+    ;;
+  *)
+    echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
+    ;;
+  esac
+}
 
 get_root_path(){
   git rev-parse --show-toplevel
@@ -29,48 +62,25 @@ get_project_name(){
   if git config --local remote.origin.url >/dev/null 2>&1; then
     git config --local remote.origin.url | sed -n 's#.*/\([^.]*\)\.git#\1#p'
   else
-    basename $(get_root_path)
+    basename "$(get_root_path)"
   fi
+}
+
+get_absolute_path(){
+  local path
+  path=$(get_location $1)/$(basename $1)
+  echo ${path##$(get_root_path)\/}
 }
 
 for arg do
   shift
   case "$arg" in
-    --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit; ;;
-    --long-current-branch )  git rev-parse --abbrev-ref HEAD;  exit; ;;
-    --root-path ) get_root_path; exit; ;;
-    --project-name ) get_project_name; exit; ;;
-    --script-location )
-      case $(uname -s) in
-      Linux)
-        echo $(dirname "$(readlink -e "$1")")
-        ;;
-      FreeBSD|OpenBSD|NetBSD)
-        echo $(dirname "$(realpath "$1")")
-        ;;
-      Darwin)
-        PRG="$1"
-        while [ -h "$PRG" ]; do
-          link=$(readlink "$PRG")
-          if expr "$link" : '/.*' > /dev/null; then
-            PRG="$link"
-          else
-            PRG="$(dirname "$PRG")/$link"
-          fi
-        done
-        echo "$(dirname $PRG)"
-        ;;
-      *MINGW*)
-        echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
-        pwd () {
-          builtin pwd -W
-        }
-        ;;
-      *)
-        echo $(dirname "$(echo "$1" | sed -e 's,\\,/,g')")
-        ;;
-      esac
-      ;;
-    *) set -- "$@" "$arg"; ;;
+    --absolute-path ) get_absolute_path $1; exit                               ;;
+    --current-branch ) git rev-parse --abbrev-ref HEAD | cut -d'/' -f 2; exit  ;;
+    --long-current-branch )  git rev-parse --abbrev-ref HEAD; exit             ;;
+    --root-path ) get_root_path; exit                                          ;;
+    --project-name ) get_project_name; exit                                    ;;
+    --script-location ) get_location "$1"; exit                                ;;
+    *) set -- "$@" "$arg"                                                      ;;
   esac
 done
