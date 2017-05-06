@@ -45,7 +45,7 @@ load_settings
 for arg; do
   shift
   case "$arg" in
-    -v) [ ! -f "$VERSION_FILE" ] || cat $VERSION_FILE; exit ;;
+    --show) [ ! -f "$VERSION_FILE" ] || cat $VERSION_FILE; exit ;;
     *) set -- "$@" "$arg"                                   ;;
   esac
 done

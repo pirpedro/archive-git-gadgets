@@ -3,24 +3,17 @@
 #git scritp variables
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
-read -r -d '' USAGE <<'EOF'
-[OPTIONS]
+USAGE=`cat << EOF
 
-      OPTIONS
 
       --absolute-path               Real (relative to git root) location.
-
       --current-branch              Show the last part of the current branch name.
-
       --long-current-branch         Show the current branch full name
-
       --root-path                   Show root path of current git repository
-
       --project-name                Show project name, as remote repository name
                                     or folder name.
-
       --script-location             Show the real location of a passed script file.
-EOF
+EOF`
 
 get_location(){
   case $(uname -s) in
@@ -72,6 +65,17 @@ get_absolute_path(){
   echo ${path##$(get_root_path)\/}
 }
 
+usage(){
+  local dashless
+  dashless=$(basename -- "${0%.*}" | sed -e 's/-/ /g')
+  test -z "$USAGE" || echo "usage: $dashless $USAGE"
+}
+
+if [ "$1" == "-h" ]; then
+  usage
+  exit
+fi
+
 for arg do
   shift
   case "$arg" in
@@ -84,3 +88,5 @@ for arg do
     *) set -- "$@" "$arg"                                                      ;;
   esac
 done
+
+usage

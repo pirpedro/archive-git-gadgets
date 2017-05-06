@@ -23,7 +23,7 @@ Giving execution permission for all scripts
 sudo chmod +x ~/git-gadgets/bin/*
 ```
 
-###Usage
+### Usage
 
 See [command list](docs/commands.md) for each extension information.
 
@@ -34,7 +34,7 @@ git gadgets init
 ```
 Don't be afraid if you didn't initialize any extension. You can do that later.
 
-####Example
+#### Example
 You can use any of `git gadgets` commands like
 
 `git [git_gadgets_command] [options]`
@@ -48,10 +48,10 @@ shows the name of your current branch.
 
 
 ## Commands
-- [`git activity`](docs/activity.md) - show the last activities in all branchs in an easy format.
-- [`git bump`](docs/bump.md) - utility to bump project version with a bunch of options and an interactive mode.
-- [`git flow`](docs/flow.md) - a simple [git flow concept](http://nvie.com/posts/a-successful-git-branching-model/) implementation.
-- [`git stats`](docs/stats.md) - a bunch of useful git environment outputs.
+-   [`git activity`](docs/activity.md) - show the last activities in all branchs in an easy format.
+-   [`git bump`](docs/bump.md) - utility to bump project version with a bunch of options and an interactive mode.
+-   [`git flow`](docs/flow.md) - a simple [git flow concept](http://nvie.com/posts/a-successful-git-branching-model/) implementation.
+-   [`git stats`](docs/stats.md) - a bunch of useful git environment outputs.
 
 ##Contributing
 1. Fork it!

@@ -4,6 +4,19 @@
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
 
+USAGE=`cat << EOF
+[COMMAND]
+EOF`
+
+LONG_USAGE=`cat << EOF
+A set of useful git subcommands.
+
+  Common commands:
+
+  init         Execute 'git gadgets init' and follow instructions to configure some
+               useful tools to your repository.
+EOF`
+
 source "$(git stats --script-location $0)"/../gadgets/git-common
 
 init(){

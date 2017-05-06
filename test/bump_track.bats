@@ -26,6 +26,12 @@ assert_git_config_track(){
   assert_equal "$(git config --get --file $config_path bump.track)" "$1"
 }
 
+@test "[Bump track] without initialization" {
+  rm -rf .git
+  run git bump track && assert_failure
+  assert_output "Bump is not initialized. Please execute 'git bump init' to start setup."
+}
+
 @test "[Bump track] no files to track." {
   run git bump track && assert_failure
   assert_output "No new files to track."

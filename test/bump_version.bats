@@ -13,6 +13,12 @@ teardown(){
   [ ! -d "$remote_location" ] || rm -rf "$remote_location"
 }
 
+@test "[Bump] without initialization" {
+  rm -rf .git
+  run git bump && assert_failure
+  assert_output "Bump is not initialized. Please execute 'git bump init' to start setup."
+}
+
 @test "[Bump] default increment" {
   run git bump
   assert_git_bump_config version=0.2.0

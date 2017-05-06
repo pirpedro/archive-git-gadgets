@@ -1,17 +1,3 @@
-## 1.3.0 (May 02, 2017)
-
-
-## 1.2.0 (May 02, 2017)
-  - Structural refactor.
-
-## 1.1.0 (April 29, 2017)
-  - First commit
-  - Test changes
-  - [flow] a bunch of actions.
-  - [flow] some feature commands
-  - [flow] feature start
-  - [flow] added command 'list'
-
 ## 1.0.0 (Dezembro 14, 2016)
   - [Bump] Set 'version' as default 'git bump' flow
   - [Bump] Fix recursive part.

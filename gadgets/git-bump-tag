@@ -26,8 +26,7 @@ default(){
      git_tag_delete "$tag_name"
      note "Removing current tag."
    else
-     note "No changes made since last tag. Nothing to do."
-     exit;
+     die "No changes made since last tag. Nothing to do."
    fi
  fi
  note "Creating new tag for version __${version}__."

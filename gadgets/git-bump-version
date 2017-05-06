@@ -38,7 +38,7 @@ default(){
       --branch) set_flag branch ;;
       --branch=*) set_flag branch; new_branch=${arg##--branch=}; ;;
       -i|--interactive) set_flag interactive; verbosity on; ;;
-      --no-tag) echo "passou aqui"; set_flag no_tag; ;;
+      --no-tag) set_flag no_tag; ;;
       --version=*)
         PARAM_VERSION=${arg##--version=}
         ! empty $PARAM_VERSION || die "You need to pass version number"
