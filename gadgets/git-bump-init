@@ -1,0 +1,146 @@
+#!/bin/bash
+
+#git script variables
+SUBDIRECTORY_OK="yes"
+
+default(){
+  local version_file_path changelog_file_path suggested_version current_version root_path
+  git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
+
+  local prefix_suggestion new_version
+  for arg do
+    shift
+    case "$arg" in
+      --defaults) set_global_flag defaults; ;;
+      -f|--force) set_global_flag force; ;;
+      --version=*) new_version="${arg##--version=}"; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
+  #set flag to resolve git commit message in the end of function.
+  gadgets_bump_is_initialized || set_flag new_bump_repo
+
+  if gadgets_bump_is_initialized && ! flag force; then
+    warn -f "Git bump is already initialized."
+    warn -f "Use 'git bump init -f' to force reinitialization."
+    exit 1
+  fi
+
+  #Initialize git gadgets if necessary.
+  if ! gadgets_is_initialized; then
+    gadgets_init
+    flag defaults || printf "\n\n"
+  fi
+
+  note "Starting git bump configuration!"
+
+  # Create version file if not exist.
+  root_path=$(git stats --root-path)
+
+  version_file_path=".version"
+  if ! git_get bump.path.version >/dev/null 2>&1 && [ ! -f "$version_file_path" ]; then
+    warn "Could not find a version file. We need to create one."
+  else
+    current_version_path=$(git_get bump.path.version || echo "$version_file_path")
+    version_file_path="$current_version_path"
+    note "Current version file location is __${current_version_path}__."
+  fi
+
+  flag defaults || ask --question="Version file location (relative to repository root)" --default="$version_file_path" --free-answer
+  flag defaults || version_file_path=${ask_answer}
+  if [ -n "$current_version_path" ] && ! equals "$current_version_path" "$version_file_path"; then
+    note "Renaming version file..."
+    git_add "$root_path/$current_version_path"
+    git mv -k "$root_path/$current_version_path" "$root_path/$version_file_path" || die "Cannot rename __${current_version_path}__."
+    set_flag haschanges
+  fi
+
+
+  if [ ! -f $root_path/$version_file_path ]; then
+    mkdir -p "$(dirname $root_path/$version_file_path)"
+    touch "$root_path/$version_file_path"
+    note "Created empty __${version_file_path}__ in repository."
+    set_flag haschanges
+  fi
+  git_set bump.path.version "$version_file_path"
+  export VERSION_FILE="$root_path/$version_file_path"
+  ! flag haschanges || git_add "$root_path/$version_file_path"
+
+  current_version=$(bump_retrieve_current_version)
+
+  if ! empty ${new_version} && ! empty $current_version && ! equals $new_version $current_version && bump_tag_exists "$new_version"; then
+    ! flag interactive || ask_answer "You are already in version __${current_version}__. Do you really want to change to version __${new_version}__?"
+    ! flag interactive || check_boolean ${ask_answer} || exit 0;
+    set_flag haschanges
+  fi
+
+  # Create changelog file if not exists
+  changelog_file_path="CHANGELOG.md"
+  if ! git_get bump.path.changelog >/dev/null 2>&1 && [ ! -f "$changelog_file_path" ]; then
+    warn "Could not find a changelog file."
+  else
+    current_changelog_path=$(git_get bump.path.changelog || echo "$changelog_file_path")
+    changelog_file_path="$current_changelog_path"
+    note "Current changelog file location is __${current_changelog_path}__."
+  fi
+
+  flag defaults || ask --question="Changelog.md file location (relative to repository root)" --default="$changelog_file_path" --free-answer
+  flag defaults || changelog_file_path=${ask_answer}
+
+  if [ -n "$current_changelog_path" ] && ! equals $current_changelog_path $changelog_file_path; then
+    note "Renaming changelog file..."
+    git_add "$root_path/$current_changelog_path"
+    git mv -k "$root_path/$current_changelog_path" "$root_path/$changelog_file_path"|| die "Cannot rename $current_changelog_path."
+    set_flag haschanges
+  fi
+
+  if [ ! -f $root_path/$changelog_file_path ]; then
+    mkdir -p "$(dirname $root_path/$changelog_file_path)"
+    touch "$root_path/$changelog_file_path"
+    note "Created empty __${changelog_file_path}__ in repository."
+    set_flag haschanges
+  fi
+  git_set bump.path.changelog "$changelog_file_path"
+  export CHANGELOG_FILE="$root_path/$changelog_file_path"
+  ! flag haschanges || git_add "$root_path/$changelog_file_path"
+
+  local prefix_suggestion
+
+  if ! git_get bump.prefix.tag >/dev/null 2>&1 || flag force; then
+    prefix_suggestion=$(git_get bump.prefix.tag || echo "v")
+    ! flag interactive || ask --question="Choose prefix for __tags__." --default="$prefix_suggestion" --free-answer
+    ! flag interactive || prefix_suggestion="${ask_answer}"
+    git_set bump.prefix.tag "$prefix_suggestion"
+  fi
+
+  local msg
+  if flag new_bump_repo; then
+    msg="Start using git bump."
+  else
+    msg="Reconfiguring git bump."
+  fi
+
+  #it's a gadgets commit because all bump commits doesn't appear in CHANGELOG.
+  if flag haschanges && flag new_bump_repo && ! git_has_commit gadgets "$msg"; then
+    git_commit gadgets "$msg"
+  fi
+  suggested_version="${new_version:-`bump_retrieve_current_version || echo '0.1.0'`}"
+  bump_compare_version "$suggested_version"
+
+  case "$?" in
+    0 ) bump_version_number "$suggested_version" && bump_changelog "$suggested_version" "$current_version" && set_flag haschanges;;
+    1 ) ;;# do nothing
+    2 ) bump_version_number "$suggested_version" && bump_reset_changelog "$suggested_version" && set_flag haschanges;;
+  esac
+
+  ! flag haschanges || git_commit bump-version "${suggested_version}"
+  git bump tag
+
+  note "Git bump is now configured. Enjoy!"
+  exit 0;
+}

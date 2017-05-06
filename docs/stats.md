@@ -1,8 +1,8 @@
-#Git Stats
+# Git Stats
 
 a bunch of useful git environment outputs.
 
-##Usage
+## Usage
 See command help for more informations.
 ```
 git stats -h

@@ -1,0 +1,183 @@
+#!/bin/bash
+
+NOW="$(date +'%B %d, %Y')"
+
+bump_retrieve_current_version(){
+  [ -f "$VERSION_FILE" ] && ! empty_file $VERSION_FILE && cat "$VERSION_FILE"
+}
+
+bump_get_tagname(){
+  ! empty "$1" || die "Parameter need to be passed."
+  echo "$(git_get bump.prefix.tag)$1"
+}
+
+bump_tag_exists(){
+  ! empty "$1" || die "Parameter need to be passed."
+  local tag_name
+  tag_name=$(bump_get_tagname "$1")
+  git_tag_exists $tag_name
+}
+
+bump_remote_tag_exists(){
+  ! empty "$1" || die "Parameter need to be passed."
+  local tag_name
+  tag_name=$(bump_get_tagname "$1")
+  git_remote_tag_exists $tag_name
+}
+
+bump_suggest_version_number(){
+  local version_number version_number_split v_major v_minor v_patch increment_type
+  version_number=$(bump_retrieve_current_version)
+  version_number_split=(`echo ${version_number} | tr '.' ' '`)
+  v_major=${version_number_split[0]}
+  v_minor=${version_number_split[1]}
+  v_patch=${version_number_split[2]}
+
+  increment_type=${1:-minor}
+  case "$increment_type" in
+    major )
+      v_major=$((v_major + 1)); v_minor=0; v_patch=0;
+      ;;
+    minor )
+      v_minor=$((v_minor + 1)); v_patch=0;
+      ;;
+    patch )
+      v_patch=$((v_patch + 1));
+      ;;
+  esac
+  echo "$v_major.$v_minor.$v_patch"
+}
+
+# Return a tag name or a commit hash that identifies the version.
+bump_version_index(){
+  local version index
+  ! empty "$1" || die "bump_version_index: Version not passed."
+  version="$1"
+  if bump_tag_exists "$version"; then
+    index=$(bump_get_tagname "$version")
+  else
+    index=$(git log --all --pretty=format:"%H" --grep="\[bump-version\] $version" -n 1)
+  fi
+  echo "$index"
+}
+
+# Organize commit changes in CHANGELOG.md
+# bump_changelog <new_version> [old_version]
+bump_changelog(){
+  local new_version old_version new_version_index old_version_index
+  local version_list from to
+  if [ "$#" -eq 2 ]; then
+    new_version="$1"
+    old_version="$2"
+  elif [ "$#" -eq 1 ]; then
+    new_version="$1"
+  else
+    die "You need to pass at least the new version number."
+  fi
+
+  [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
+
+  new_version_index=$(bump_version_index "$new_version")
+  new_version_index=${new_version_index:-"HEAD"} #if it's a new version, we dont´t have a version commit or tag yet.
+  if ! empty "$old_version"; then
+    old_version_index=$(bump_version_index "$old_version")
+  fi
+  # if didn't find index, use first commit instead.
+  if empty "$old_version_index"; then
+    old_version_index=$(git rev-list --max-parents=0 HEAD);
+  else
+    #preparing to use this variable in git range
+    #so bottom limit must use "parent" for his index appear too.
+    old_version_index+="~1"
+  fi
+
+  local lower_limit upper_limit commit_time version_format
+  # return all commits that starts with [bump-version] and parse to keep only the version number.
+  version_list=($(git log --all --reverse --pretty=format:"%s" --grep='\[bump-version\]' $old_version_index..$new_version_index | sed 's/.*\[bump-version\] //'))
+  if equals "$new_version_index" "HEAD"; then version_list+=("HEAD"); fi #include HEAD in list
+  for version in ${version_list[*]}; do
+    lower_limit="$upper_limit"
+    upper_limit=$(bump_version_index "$version")
+    upper_limit=${upper_limit:-"HEAD"}
+    if [ ${#version_list[@]} -eq 1 ] || (! empty "$lower_limit" && ! empty "$upper_limit"); then
+      if ! empty "$lower_limit"; then lower_limit+="~1.."; fi
+      if equals "$version" "HEAD"; then
+        commit_time="$NOW"
+        version_format="$new_version"
+      else
+        commit_time=`date -r $(git log --pretty=format:"%at" $upper_limit -n 1) +'%B %d, %Y'`
+        version_format="$version"
+      fi
+      TEMP_FILE=$(mktmp_file)
+      echo "## $version_format ($commit_time)" > $TEMP_FILE
+      git log --invert-grep --grep='\[bump' --pretty=format:"  - %s" $lower_limit$upper_limit >> $TEMP_FILE
+      echo "" >> $TEMP_FILE
+      echo "" >> $TEMP_FILE
+    fi
+  done
+  cat $CHANGELOG_FILE >> $TEMP_FILE
+  mv $TEMP_FILE $CHANGELOG_FILE
+  ! flag interactive || {
+    ! ask_boolean "Now you can make adjustments to __${CHANGELOG_FILE##$(git stats --root-path)}__. Do you want? " "${FLAG_FALSE}" || \
+    git_editor $CHANGELOG_FILE
+  }
+  git_add $CHANGELOG_FILE
+}
+
+#Pass a version and check if it is below, equals or above current.
+#Return
+# 0 - if above version
+# 1 - if equal version
+# 2 - if below version
+bump_compare_version(){
+  [ -n "$1" ] || die "No version passed."
+  local check_version current_version
+  check_version="$1"
+  current_version=$(cat $VERSION_FILE)
+
+  if empty "$current_version"; then
+    return_value=0; #means that check version is above an "empty version".
+  elif equals "$check_version" "$current_version"; then
+    return_value=1;
+  else
+    current_split=(`echo ${current_version} | tr '.' ' '`)
+    check_split=(`echo ${check_version} | tr '.' ' '`)
+    for i in 0 1 2; do
+      if [ $(( ${check_split[$i]} + 1 )) -eq $(( ${current_split[$i]} + 1 )) ]; then
+        continue;
+      elif [ $(( ${check_split[$i]} + 1 )) -gt $(( ${current_split[$i]} + 1 )) ]; then
+        return_value=0; break;
+      else
+        return_value=2; break;
+      fi
+    done
+  fi
+
+  return $return_value
+}
+
+bump_version_number(){
+  local new_version current_version
+  ! empty "$1" || die "Need to pass parameter."
+  new_version="$1"
+  current_version=$(bump_retrieve_current_version)
+
+  bump_compare_version "$new_version"
+  [ ! "$?" -eq 1 ] || return 1; #same version, do nothing
+  [ -f "$VERSION_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
+
+  echo $new_version > $VERSION_FILE
+  git_add $VERSION_FILE
+  if git_get bump.track >/dev/null 2>&1; then
+    local tracked=($(git_get bump.track))
+    sed -i "s/$current_version/$new_version/g" ${tracked[*]}
+    git_add ${tracked[*]}
+  fi
+  note "Set version number to __${new_version}__."
+}
+
+bump_reset_changelog_file(){
+  [ -f "$CHANGELOG_FILE" ] || die "Something is wrong. Reexecute 'git bump init'."
+  truncate -s 0 $CHANGELOG_FILE
+  bump_changelog ${1:-`bump_retrieve_current_version`}
+}

@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# this script will display the current version, automatically
+# suggest a "minor" version update, and ask for input to use
+# the suggestion, or a newly entered value.
+
+# once the new version number is determined, the script will
+# pull a list of changes from git history, prepend this to
+# a file called CHANGELOG.md (under the title of the new version
+# number), give user a chance to review and update the changelist
+# manually if needed and create a GIT tag.
+
+# shellcheck disable=SC2034
+#git script variables
+SUBDIRECTORY_OK="yes"
+NONGIT_OK="yes"
+source "$(git stats --script-location $0)"/../gadgets/git-common
+source "$(git stats --script-location $0)"/../gadgets/git-bump-common
+
+load_settings(){
+  local root_path
+  if gadgets_is_initialized; then
+    root_path=$(git stats --root-path)
+  else
+    root_path=$(pwd)
+  fi
+
+  gadgets_load_settings
+  if gadgets_is_initialized; then
+    export VERSION_FILE=$root_path/$(git_get bump.path.version)
+    export CHANGELOG_FILE=$root_path/$(git_get bump.path.changelog)
+  fi
+}
+
+actions="init version tag track revert-to"
+extglob_on
+case "$1" in
+  $(case_one "$actions")) flow="$1"; shift ;;
+  *) flow="version"                        ;;
+esac
+extglob_restore
+
+load_settings
+
+for arg; do
+  shift
+  case "$arg" in
+    --show) [ ! -f "$VERSION_FILE" ] || cat $VERSION_FILE; exit ;;
+    *) set -- "$@" "$arg"                                   ;;
+  esac
+done
+
+BUMP_FILE=$(location $0)/../gadgets/git-bump-$flow
+if [[ -e $BUMP_FILE ]]; then
+  if [[ ! -x $BUMP_FILE ]]; then
+    sudo chmod +x $BUMP_FILE
+  fi
+
+  if ! gadgets_bump_is_initialized && [ "$flow" != "init" ]; then
+    die "Bump is not initialized. Please execute 'git bump init' to start setup."
+  fi
+  #Run flow
+  . "$BUMP_FILE"
+  "${action:-"default"}" "$@"
+else
+  usage
+fi

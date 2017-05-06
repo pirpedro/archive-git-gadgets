@@ -1,0 +1,506 @@
+#!/bin/bash
+
+BASEDIR=$(dirname "${BASH_SOURCE[0]}")
+# shellcheck source=gadgets/sh-common
+source $BASEDIR/sh-common
+#source $(git --exec-path)/git-sh-setup
+
+parse_config_key(){
+    echo "$1" | sed 's%/%-%g'
+}
+
+git_config(){
+  local config_file
+  config_file="$(git stats --root-path)"/.git/gadgets
+  [ -f $config_file ] || touch $config_file
+  git config --file=$config_file "$@"
+}
+
+git_get(){ git_config --get "$(parse_config_key $1)"; }
+git_set(){ git_config "$(parse_config_key $1)" "$2"; }
+git_unset(){ git config --unset "$(parse_config_key $1)"; }
+git_unset_all(){ git config --unset-all "$(parse_config_key $1)"; }
+git_remove_section(){ git config --remove-section "$(parse_config_key $1)"; }
+
+gadgets_is_initialized(){
+  git rev-parse --git-dir >/dev/null 2>&1 && git_get core.master >/dev/null 2>&1
+}
+
+git_is_initialized(){
+  gadgets_is_initialized && \
+  git_config --get-regexp "$(parse_config_key $1)" >/dev/null 2>&1
+}
+
+gadgets_flow_is_initialized(){
+  git_is_initialized flow
+}
+
+gadgets_bump_is_initialized(){
+  git_is_initialized bump
+}
+
+git_remote_exists(){
+  git remote | grep $ORIGIN > /dev/null
+}
+
+git_local_branch_exists(){
+  ! empty "$1" || die "git_local_branch_exists: No branch name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/heads/$1)"
+}
+
+git_remote_branch_exists(){
+  ! empty "$1" || die "git_remote_branch_exists: No branch name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/remotes/$1)"
+}
+
+git_branch_exists(){
+  ! empty  "$1" || die "git_branch_exists: No branch name passed."
+  git_local_branch_exists "$1" || git_remote_branch_exists "$ORIGIN/$1"
+}
+
+git_tag_exists(){
+  ! empty "$1" || die "No tag name passed."
+  ! empty "$(git for-each-ref --format='%(refname:short)' refs/tags/$1)"
+}
+
+git_remote_tag_exists(){
+  ! empty "$1" || die "No tag name passed."
+  if git_remote_exists && empty_output git ls-remote refs/tags/$1; then
+    return ${FLAG_FALSE}
+  else
+    return ${FLAG_TRUE}
+  fi
+}
+
+git_tag_delete(){
+  ! empty "$1" || die "git_tag_delete: No tag name."
+  git_local_tag_delete "$1"
+  git_remote_tag_delete "$1"
+}
+
+git_local_tag_delete(){
+  ! empty "$1" || die "git_local_tag_delete: No tag name."
+  git tag -d "$1" >/dev/null 2>&1
+}
+
+git_remote_tag_delete(){
+  ! empty -n "$1" || die "git_remote_tag_delete: No tag name."
+  ! git_remote_tag_exists "$1" || git push origin --delete "$1" >/dev/null 2>&1
+}
+
+git_remote_branch_delete(){
+  ! empty "$1" || die "git_remote_branch_delete: No branch name passed."
+  if git_remote_branch_exists "$ORIGIN/$1"; then
+    git push "$ORIGIN" :"$1" || die "Not possible to delete remote branch $1 in $origin"
+  else
+    warn "Remote branch $1 doesn't exists."
+  fi
+}
+
+ADD_ARRAY=()
+git_add(){
+  [ "$#" != 0 ] || die "No files to be added."
+  git add "$@" >/dev/null 2>&1 && ADD_ARRAY+=("$@")
+}
+
+git_commit(){
+  ! empty "$1" || die "No extension name passed."
+  ! empty "$2" || die "No message passed."
+  git commit -m "[$1] $2" ${ADD_ARRAY[*]} >/dev/null 2>&1
+  ADD_ARRAY=()
+}
+
+git_has_commit(){
+  ! empty "$1" || die "No extension name passed."
+  ! empty "$2" || die "No message passed."
+  ! git_is_empty_repo && ! empty_output git log --grep="\[$1\] $2"
+}
+
+git_config_has_master(){
+  local master="$(git_get core.master)"
+  ! empty "$master" && git_local_branch_exists "$master"
+}
+
+git_config_has_develop(){
+  local develop="$(git_get core.develop)"
+  ! empty "$develop" && git_local_branch_exists "$develop"
+}
+
+gadgets_load_settings(){
+  if gadgets_is_initialized; then
+    export ORIGIN=$(git_get core.origin || echo origin)
+    export MASTER_BRANCH=$(git_get core.master)
+    export DEVELOP_BRANCH=$(git_get core.develop)
+    export CURRENT_BRANCH=$(git stats --long-current-branch)
+  fi
+}
+
+git_local_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/heads; }
+git_remote_branches(){ git for-each-ref --sort refname --format='%(refname:short)' refs/remotes; }
+git_branchs(){ git for-each-ref --sort refname --format='%(refname:short)' refs/remotes refs/heads; }
+git_tags(){ git for-each-ref --format='%(refname:short)' refs/tags; }
+
+git_local_branches_with_prefix(){
+  [ -n "$1" ] || die "Prefix missing."
+  git for-each-ref --format='%(refname:short)' refs/heads/$1\*
+}
+
+git_remote_branches_with_prefix(){
+  [ -n "$1" ] || die "Prefix missing."
+  git for-each-ref --format='%(refname:short)' refs/remotes/\*/$1\*
+}
+
+git_branchs_with_prefix(){
+  git for-each-ref --format='%(refname:short)' refs/remotes/\*/$1\* refs/heads/$1\*
+}
+
+git_is_empty_repo(){
+  [ "$(find .git/objects -type f -print -quit | wc -c)" -eq 0 ]
+}
+
+git_is_clean_working_tree() {
+	git rev-parse --verify HEAD >/dev/null || exit 1
+	git update-index -q --ignore-submodules --refresh
+
+	# Check for unstaged changes
+	git diff-files --quiet --ignore-submodules || return 1
+
+	# Check for Uncommited changes
+	git diff-index --cached --quiet --ignore-submodules HEAD -- || return 2
+
+	return 0
+}
+
+#
+# git_fetch_branch()
+#
+# $1 Origin - Where to fetch from
+# $2 Branch - Which branch to fetch
+#
+# This fetches the given branch from the given origin.
+# Instead of storing it in FETCH_HEAD it will be stored in
+# refs/remotes/<origin>/<branch>
+#
+git_fetch(){
+  local origin branch
+  [ -n "$1" ] || die "No origin passed."
+  [ -n "$2" ] || die "No branch passed."
+  origin="$1"
+  branch="$2"
+  if git_remote_branch_exists "$origin/$branch"; then
+    git fetch -q "$origin" "$branch":refs/remotes/"$origin"/"$branch" || die "Could not fetch $branch from $origin."
+  else
+      die "Branch $origin/$branch not exists."
+  fi
+}
+
+git_checkout(){
+  local branch current_branch
+  [ -n "$1" ] || die "git_checkout: No branch name passed."
+  branch="$1"
+  current_branch=${2:-$(git stats --long-current-branch)}
+  git fetch --all -p >/dev/null 2>&1 # get last remote changes, to keep consistence
+
+  if ! git_local_branch_exists "$branch"; then
+    if git_remote_branch_exists "$ORIGIN/$branch"; then
+      git branch "$branch" "$ORIGIN/$branch" >/dev/null 2>&1
+    elif git_local_branch_exists "$current_branch"; then
+      git branch "$branch" "$current_branch" >/dev/null 2>&1
+    fi
+  fi
+  git checkout "$branch" >/dev/null 2>&1
+}
+
+#
+# git_compare_refs()
+#
+# Tests whether two references have diverged and need merging
+# first. It returns error codes to provide more detail, like so:
+#
+# 0    References point to the same commit
+# 1    First given reference needs fast-forwarding
+# 2    Second given reference needs fast-forwarding
+# 3    References need a real merge
+# 4    There is no merge base, i.e. the references have no common ancestors
+#
+git_compare_refs() {
+	local commit1 commit2 base
+
+	commit1=$(git rev-parse "$1"^{})
+	commit2=$(git rev-parse "$2"^{})
+	if [ "$commit1" != "$commit2" ]; then
+		base=$(git merge-base "$commit1" "$commit2")
+		if [ $? -ne 0 ]; then
+			return 4
+		elif [ "$commit1" = "$base" ]; then
+			return 1
+		elif [ "$commit2" = "$base" ]; then
+			return 2
+		else
+			return 3
+		fi
+	else
+		return 0
+	fi
+}
+
+#
+# git_is_branch_merged_into()
+#
+# Checks whether branch $1 is successfully merged into $2
+#
+git_is_branch_merged_into() {
+	local merge_hash base_hash
+
+	merge_hash=$(git merge-base "$1"^{} "$2"^{})
+	base_hash=$(git rev-parse "$1"^{})
+
+	# If the hashes are equal, the branches are merged.
+	[ "$merge_hash" = "$base_hash" ]
+}
+
+git_editor() {
+	if test -z "${GIT_EDITOR:+set}"
+	then
+		GIT_EDITOR="$(git var GIT_EDITOR)" || return $?
+	fi
+
+	eval "$GIT_EDITOR" '"$@"'
+}
+
+gadgets_init(){
+  local master develop branch_count suggestion
+  for arg do
+    shift
+    case "$arg" in
+      --defaults) set_flag defaults; ;;
+      -f|--force) set_flag force; ;;
+      *) set -- "$@" "$arg"; ;;
+    esac
+  done
+
+  if ! flag defaults; then
+    set_global_flag interactive
+    verbosity on
+  fi
+
+  #set flag to resolve git commit message in the end of function.
+  gadgets_is_initialized || set_flag new_gadgets_repo
+
+  if gadgets_is_initialized && ! flag force; then
+    die "Git gadgets is already initialized."
+  fi
+
+  flag force || flag defaults || cat <<EOF
+*   _____          _____   _____ ______ _______ _____   *
+*  / ____|   /\   |  __ \ / ____|  ____|__   __/ ____|  *
+* | |  __   /  \  | |  | | |  __| |__     | | | (___    *
+* | | |_ | / /\ \ | |  | | | |_ |  __|    | |  \___ \   *
+* | |__| |/ ____ \| |__| | |__| | |____   | |  ____) |  *
+*  \_____/_/    \_|_____/ \_____|______|  |_| |_____/   *
+*                                                       *
+EOF
+
+  flag force || note "Welcome to git gadgets. A bunch of git extensions to"
+  flag force || note "make your development more organized and productive.\n"
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    note "This is not a git repository already. Let's start..."
+    if git init >/dev/null 2>&1; then
+      note "Git initialized in directory __$(pwd)__.\n"
+    else
+      die "Something went wrong. GIT cant't be initialized in this directory."
+    fi
+  fi
+
+  flag force || note "Creating __.git/gadgets__ file."
+  flag force || note "All extensions configuration stay here."
+  flag force || note "See documentation for further information.\n"
+  local root_path
+  root_path=$(git stats --root-path)
+  [ -e $root_path/.git/gadgets ] || (touch $root_path/.git/gadgets)
+
+  if git_config_has_master && ! flag force; then
+    master=$(git_get core.master)
+  else
+    branch_count=$(git_local_branches | wc -l)
+    if equals "$branch_count" 0; then
+      note "No branches exists. We need to create it."
+      suggestion=$(git_get core.master || echo master)
+    else
+      note "You have these branchs:"
+      flag defaults || git_local_branches | sed 's/^.*$/   - &/g'
+      suggestion=""
+			for mybranch in $(git_get core.master) 'production' 'main' 'master'; do
+				if git_local_branch_exists "$mybranch"; then
+					suggestion="$mybranch"
+					break
+				fi
+			done
+    fi
+
+    if flag defaults; then
+      master=$suggestion
+    else
+      ask --default="$suggestion" --free-answer --question="Choose branch name for production (master) branch"
+      master=${ask_answer}
+    fi
+  fi
+
+  git_set core.master "$master"
+
+  export MASTER_BRANCH="$master"
+  export CURRENT_BRANCH="$master"
+
+  if git_local_branch_exists "$master" && ! git rev_parse --quiet --verify HEAD>/dev/null 2>&1 ; then
+    git symbolic-ref HEAD "refs/heads/$master" >/dev/null 2>&1
+  fi
+
+  file="$(git stats --root-path)/README.md"
+  [ -f $file ] || printf "#$(git stats --project-name)\n\nPowered by Git Gadgets." >> $file
+  git_add $file
+
+  local msg
+  if flag new_gadgets_repo; then
+    msg="Start using git gadgets."
+    if ! git_has_commit gadgets "$msg"; then
+      git_commit gadgets "$msg"
+    fi
+  else
+    git_commit gadgets "Reconfiguring git gadgets."
+  fi
+
+  git_checkout "$master"
+
+  if flag defaults || ask_boolean "Create a develop branch to separate developing and production environments?"; then
+    if git_config_has_develop && ! flag force; then
+      develop=$(git_get core.develop)
+    else
+      branch_count=$(git_local_branches | grep -v "^${master}\$" | wc -l)
+      if equals "$branch_count" 0; then
+        note "No branches exists. We need to create it."
+        suggestion=$(git_get core.develop || echo develop)
+      else
+        note "You have these branchs:"
+        flag defaults || git_local_branches | sed 's/^.*$/   - &/g'
+        suggestion=""
+        for mybranch in $(git_get core.develop) 'develop' 'integration' 'development'; do
+          if git_local_branch_exists "$mybranch"; then
+            suggestion="$mybranch"
+            break
+          fi
+        done
+      fi
+
+      if flag defaults; then
+        develop=$suggestion
+      else
+        ask --default="$suggestion" --free-answer --question="Choose branch name for development (develop) branch"
+        develop=${ask_answer}
+      fi
+    fi
+
+    if [ "$master" = "$develop" ]; then
+			die "Production and integration branches should differ."
+		fi
+
+    git_set core.develop "$develop"
+    git_checkout "$develop" && {
+      export DEVELOP_BRANCH="$develop"
+      export CURRENT_BRANCH="$develop"
+    }
+  fi
+  note "Git gadgets initialized."
+}
+
+# Make sure we are in a valid repository of a vintage we understand,
+# if we require to be in a git repository.
+git_dir_init () {
+	GIT_DIR=$(git rev-parse --git-dir) || exit
+	if [ -z "$SUBDIRECTORY_OK" ]
+	then
+		test -z "$(git rev-parse --show-cdup)" || {
+			exit=$?
+			echo >&2 "You need to run this command from the toplevel of the working tree."
+			exit $exit
+		}
+	fi
+	test -n "$GIT_DIR" && GIT_DIR=$(cd "$GIT_DIR" && pwd) || {
+		echo >&2 "Unable to determine absolute path of git directory"
+		exit 1
+	}
+	: ${GIT_OBJECT_DIRECTORY="$(git rev-parse --git-path objects)"}
+}
+
+if test -z "$NONGIT_OK"
+then
+	git_dir_init
+fi
+
+
+##require session
+
+require_local_branch(){
+  git_local_branch_exists "$1" || die "Local branch $1 is required."
+}
+
+require_remote_branch(){
+  git_remote_branch_exists "$1" || die "Remote branch $1 is required."
+}
+
+require_branch(){
+  git_branch_exists "$1" || die "Branch $1 is required."
+}
+
+require_local_branch_absent(){
+  ! git_local_branch_exists "$1" || die "Local branch $1 exist. Choose another."
+}
+
+require_remote_branch_absent(){
+  ! git_remote_branch_exists "$1" || die "Remote branch $1 exist. Choose another."
+}
+
+require_branch_absent(){
+  ! git_branch_exists "$1" || die "Branch $1 exist. Choose another."
+}
+
+require_branch_prefix(){
+  local branch prefix
+  branch="$1"
+  prefix="$2"
+  startswith "$branch" "$prefix" || die "$branch can't be used. NOt prefixed with $prefix."
+}
+
+require_branches_equal() {
+	local compare_refs_result
+
+	require_local_branch "$1"
+	require_remote_branch "$2"
+	git_compare_refs "$1" "$2"
+	compare_refs_result=$?
+
+	if [ $compare_refs_result -gt 0 ]; then
+		warn "Branches '$1' and '$2' have diverged."
+		if [ $compare_refs_result -eq 1 ]; then
+			die "And branch '$1' may be fast-forwarded."
+		elif [ $compare_refs_result -eq 2 ]; then
+			# Warn here, since there is no harm in being ahead
+			warn "And local branch '$1' is ahead of '$2'."
+		else
+			die "Branches need merging first."
+		fi
+	fi
+}
+
+require_clean_working_tree() {
+	local result
+
+	git_is_clean_working_tree
+	result=$?
+	if [ $result -eq 1 ]; then
+		die "Working tree contains unstaged changes. Aborting."
+	fi
+	if [ $result -eq 2 ]; then
+		die "Index contains uncommited changes. Aborting."
+	fi
+}

@@ -1,8 +1,8 @@
-#Git Activity
+# Git Activity
 
-Show the last activities in all branchs in an easy format.
+Show last activity in each remote branch providing a macro view of the repository.
 
-##Usage
+## Usage
 See command help for more informations.
 ```
 git activity -h
