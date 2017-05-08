@@ -11,12 +11,19 @@ default(){
   for arg do
     shift
     case "$arg" in
-      -*|--*) usage ;;
-      *) set -- "$@" "$arg"; ;;
+      --preview) set_flag preview ;;
+      -*|--*) usage               ;;
+      *) set -- "$@" "$arg"       ;;
     esac
   done
 
  version=$(bump_retrieve_current_version)
+
+ if flag preview; then
+   ! empty "$1" || die "No version passed"
+   echo "$(bump_get_tagname "$1")"
+   exit
+ fi
  version_index=$(bump_version_index "$version")
  if bump_tag_exists "$version"; then
    if [[ `git rev-list --count $version_index..HEAD` -gt 0 ]]; then

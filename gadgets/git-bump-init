@@ -1,6 +1,50 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 
+_install_hooks(){
+  local hooks
+  hooks=$(git stats --root-path)/.git/hooks
+
+  [ -f $hooks/filter-flow-release-start-version ] || touch $hooks/filter-flow-release-start-version
+  echo "#!/bin/sh
+  VERSION=\$(git bump --preview)
+  git bump tag --preview \"\$VERSION\"
+  exit 0" > "$hooks"/filter-flow-release-start-version
+
+  [ -f $hooks/filter-flow-release-finish-tag-message ] || touch $hooks/filter-flow-release-finish-tag-message
+  echo "#!/bin/sh
+  VERSION=\$(git bump --show)
+  echo \"Tag version \$VERSION.\"
+  exit 0" > "$hooks"/filter-flow-release-finish-tag-message
+
+  [ -f $hooks/post-flow-release-start ] || touch $hooks/post-flow-release-start
+  echo "#!/bin/sh
+  git bump --no-tag
+  exit 0" > "$hooks"/post-flow-release-start
+
+  [ -f $hooks/filter-flow-hotfix-start-version ] || touch $hooks/filter-flow-hotfix-start-version
+  echo "#!/bin/sh
+  VERSION=\$(git bump --preview patch)
+  git bump tag --preview \"\$VERSION\"
+  exit 0" > "$hooks"/filter-flow-hotfix-start-version
+
+  [ -f $hooks/post-flow-hotfix-start ] || touch $hooks/post-flow-hotfix-start
+  echo "#!/bin/sh
+  git bump --no-tag patch
+  exit 0" > "$hooks"/post-flow-hotfix-start
+
+  [ -f $hooks/filter-flow-hotfix-finish-tag-message ] || touch $hooks/filter-flow-hotfix-finish-tag-message
+  echo "#!/bin/sh
+  VERSION=\$(git bump --show)
+  echo \"Tag version \$VERSION.\"
+  exit 0" > "$hooks"/filter-flow-hotfix-finish-tag-message
+
+  chmod +x "$hooks"/filter-flow-* >/dev/null 2>&1
+  chmod +x "$hooks"/pre-flow-* >/dev/null 2>&1
+  chmod +x "$hooks"/post-flow-* >/dev/null 2>&1
+  note "Installed hooks in __$hooks/__"
+}
+
 default(){
   local version_file_path changelog_file_path suggested_version current_version root_path
   git pull --tags>/dev/null 2>&1 #get all tags from remote to keep coherence.
@@ -9,10 +53,10 @@ default(){
   for arg do
     shift
     case "$arg" in
-      --defaults) set_global_flag defaults; ;;
-      -f|--force) set_global_flag force; ;;
-      --version=*) new_version="${arg##--version=}"; ;;
-      *) set -- "$@" "$arg"; ;;
+      --defaults) set_global_flag defaults           ;;
+      -f|--force) set_global_flag force              ;;
+      --version=*) new_version="${arg##--version=}"  ;;
+      *) set -- "$@" "$arg"                          ;;
     esac
   done
   if ! flag defaults; then
@@ -138,6 +182,8 @@ default(){
 
   ! flag haschanges || git_commit bump-version "${suggested_version}"
   git bump tag
+
+  _install_hooks
 
   note "Git bump is now configured. Enjoy!"
   exit 0;

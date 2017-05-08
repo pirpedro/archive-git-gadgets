@@ -34,13 +34,11 @@ init(){
     note -f "__Git flow__ is __petervanderdoes/gitflow-avh__ github project."
     note -f "It's an extension that handles a success branching model design."
     if flag defaults || ask_boolean "Do you want to configure __git flow__ to this repository?"; then
-      echo foca
       if [ ! -f /usr/local/bin/git-flow ]; then
-        wget --no-check-certificate -q https://raw.githubusercontent.com/petervanderdoes/gitflow-avh/develop/contrib/gitflow-installer.sh && sudo bash gitflow-installer.sh install develop;
+        wget --no-check-certificate -q https://raw.githubusercontent.com/petervanderdoes/gitflow-avh/develop/contrib/gitflow-installer.sh && sudo bash gitflow-installer.sh install develop >/dev/null;
         rm gitflow-installer.sh; sudo rm -rf gitflow;
       fi
-      echo foca2
-      printf "$MASTER_BRANCH\n$DEVELOP_BRANCH\n\n" | git flow init && {
+      printf "$MASTER_BRANCH\n$DEVELOP_BRANCH\n\n" | git flow init >/dev/null && {
         note -f "Git flow installed in __/usr/local__ with default values."
         note -f "Execute 'git flow init -f' to change any configuration."
       }

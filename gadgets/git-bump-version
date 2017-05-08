@@ -27,22 +27,22 @@ version [OPTIONS] [INCREMENT] [BRANCH]
 EOF
 
 default(){
-  local target_branch latest_hash current_version bump_version new_branch
+  local increment target_branch latest_hash current_version bump_version new_branch
 
   for arg do
     shift
     case "$arg" in
-      major|minor|patch) INCREMENT="$arg"; ;;
-      --branch) set_flag branch ;;
-      --branch=*) set_flag branch; new_branch=${arg##--branch=}; ;;
-      -i|--interactive) set_flag interactive; verbosity on; ;;
-      --no-tag) set_flag no_tag; ;;
+      major|minor|patch) increment="$arg"                               ;;
+      --branch) set_flag branch                                         ;;
+      --branch=*) set_flag branch; new_branch=${arg##--branch=}         ;;
+      -i|--interactive) set_flag interactive; verbosity on              ;;
+      --no-tag) set_flag no_tag                                         ;;
+      --preview) set_flag preview                                       ;;
       --version=*)
         PARAM_VERSION=${arg##--version=}
-        ! empty $PARAM_VERSION || die "You need to pass version number"
-        ;;
-      -*|--*) usage ;;
-      *) set -- "$@" "$arg"; ;;
+        ! empty $PARAM_VERSION || die "You need to pass version number" ;;
+      -*|--*) usage                                                     ;;
+      *) set -- "$@" "$arg"                                             ;;
     esac
   done
 
@@ -55,11 +55,16 @@ default(){
   note "Current version: __${current_version}__"
   note "Latest commit hash: __${latest_hash}__"
 
-  bump_version="${PARAM_VERSION:-`bump_suggest_version_number "$INCREMENT"`}"
+  bump_version="${PARAM_VERSION:-`bump_suggest_version_number "$increment"`}"
 
   # bump version handle only with above version.
   if ! bump_compare_version "$bump_version"; then
     die "New version is not above current version. Use 'git bump revert-to' instead."
+  fi
+
+  if flag preview; then
+    echo "$bump_version"
+    exit
   fi
 
   if flag interactive; then
