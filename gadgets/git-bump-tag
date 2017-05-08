@@ -1,6 +1,4 @@
-#!/bin/bash
-
-#git script variables
+ #git script variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
 tag

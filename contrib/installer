@@ -1,0 +1,93 @@
+#!/bin/bash
+set -e
+usage() {
+  echo "Usage: installer [install|uninstall] [stable|develop]"
+}
+
+PREFIX_BIN="/usr/local"
+ENVIRONMENT=${2:-"stable"}
+
+PREFIX_DATA="/usr/local"
+
+REPO_NAME="git-gadgets"
+REPO_LOCATION="https://github.com/pirpedro/$REPO_NAME"
+BINDIR="$PREFIX_BIN/bin"
+DATADIR="$PREFIX_DATA/gadgets"
+EXEC_FILES=(git-activity git-bump git-gadgets git-stats)
+SCRIPT_FILES=(gadgets/sh-common gadgets/sh-extglob gadgets/git-common)
+
+install_stable(){
+  for file in ${EXEC_FILES[*]}; do
+    SCRIPT_FILES+=($(find 'gadgets' -iname "${file}-*"))
+  done
+  install -d -m 0755 "$BINDIR"
+  for file in ${EXEC_FILES[*]}; do
+    install -m 0755 "bin/$file" "$BINDIR"
+  done
+	install -d -m 0744 "$DATADIR"
+  install -m 0744 "${SCRIPT_FILES[@]}" "$DATADIR"
+	cd "$OLDPWD" || exit
+  rm -rf "$REPO_NAME" || exit
+}
+
+install_develop(){
+  echo "Installing 'git gadgets' to $BINDIR"
+  ln -sFf $PWD/bin/* "$BINDIR"
+  ln -sFf $PWD/gadgets "$DATADIR"
+  for file in bin/* ; do
+     chmod u+x "$file"
+  done
+}
+
+case "$1" in
+  help)
+    usage
+    exit
+  ;;
+  install)
+    if [ -d "$REPO_NAME" ] && [ -d "$REPO_NAME/.git" ]; then
+      echo "Using existing repo: $REPO_NAME"
+    else
+      echo "Cloning repo from GitHub to $REPO_NAME"
+      git clone --recursive "$REPO_LOCATION" "$REPO_NAME"
+    fi
+    cd "$REPO_NAME" || exit
+    case "$ENVIRONMENT" in
+      stable)
+        git checkout master
+        git pull && git submodule update --init --recursive
+        install_stable
+      ;;
+      develop)
+        git checkout develop
+        git pull && git submodule update --init --recursive
+        install_develop
+      ;;
+      *)
+        usage
+        exit
+      ;;
+    esac
+    if [ ! -z $SUDO_USER ]; then
+      chown -R "$SUDO_USER" "$DATADIR"
+    fi
+    echo "Installation complete in $DATADIR."
+  ;;
+  uninstall)
+      echo "Uninstalling git-gadgets from $PREFIX_BIN"
+      if [ -d "$BINDIR" ] ; then
+        for script_file in $EXEC_FILES ; do
+          echo "rm -vf $BINDIR/$script_file"
+          rm -vf "$BINDIR/$script_file"
+        done
+        rm -rf "$DOCDIR"
+      else
+        echo "The '$BINDIR' directory was not found."
+      fi
+      exit
+  ;;
+  *)
+  usage
+  exit
+  ;;
+esac

@@ -1,5 +1,3 @@
-#!/bin/bash
-
 BASEDIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck source=gadgets/sh-common
 source $BASEDIR/sh-common

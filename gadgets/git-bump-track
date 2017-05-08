@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 #git script variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
