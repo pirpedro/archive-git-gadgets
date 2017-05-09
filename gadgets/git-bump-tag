@@ -1,9 +1,15 @@
  #git script variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
-tag
+[<options>]
 
-  Create or update current version tag.
+    -h| --help                        Print this help.
+        --preview                     Show the preview name of a tag. Pass
+                                      version number as argument.
+EOF`
+
+LONG_USAGE=`cat << EOF
+Create or update current version tag.
 EOF`
 
 default(){
@@ -12,7 +18,7 @@ default(){
     shift
     case "$arg" in
       --preview) set_flag preview ;;
-      -*|--*) usage               ;;
+      -*|--*) usage "git bump tag"; exit         ;;
       *) set -- "$@" "$arg"       ;;
     esac
   done
