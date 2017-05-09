@@ -35,10 +35,10 @@ teardown(){
 }
 
 @test "[Bump] print current version" {
-  run git bump -v && assert_success
+  run git bump --show && assert_success
   assert_output "0.1.0"
   run git bump && assert_success
-  run git bump -v && assert_success
+  run git bump --show && assert_success
   assert_output "0.2.0"
 }
 

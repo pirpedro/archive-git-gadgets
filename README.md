@@ -4,9 +4,14 @@ A set of useful git subcommands.
 
 ## Getting started
 
-First clone this project to your local machine.
+For a fast way to run this project, first clone to your local machine.
 ```
-cd ~ && git clone git@github.com:pirpedro/git-gadgets.git
+cd ~ && git clone https://github.com/pirpedro/git-gadgets
+```
+
+Then run the Makefile
+```
+cd git-gadgets && sudo make install
 ```
 
 ### Prerequisites
@@ -14,13 +19,14 @@ cd ~ && git clone git@github.com:pirpedro/git-gadgets.git
 To make `git gadgets` commands works as real git subcommands it's necessary to include them in your `PATH` environment variable and give execution permission.
 
 ### Installing
-Adding `git gadgets` commands in `PATH`
+
+If you want to install the development mode, download the [installer](https://raw.githubusercontent.com/pirpedro/git-gadgets/develop/contrib/installer) script and run it.
 ```
-export PATH=$PATH:~/git-gadgets/bin
+chmod +x installer && sudo ./installer install develop
 ```
-Giving execution permission for all scripts
+or in just a single line:
 ```
-sudo chmod +x ~/git-gadgets/bin/*
+curl -L https://raw.githubusercontent.com/pirpedro/git-gadgets/develop/contrib/installer | sudo bash /dev/stdin install develop
 ```
 
 ### Usage

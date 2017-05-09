@@ -14,6 +14,28 @@
 #git script variables
 SUBDIRECTORY_OK="yes"
 NONGIT_OK="yes"
+
+USAGE=`cat << EOF
+<SUBCOMMAND> [<options>]
+
+    --show        Show current version number of this project.
+    
+A tool to increment and organize project version in unique values.
+EOF`
+
+LONG_USAGE=`cat << EOF
+Common subcommands:
+
+  tag                 create or update current version tag.
+  track               monitore files in git repository that contains
+                      the version pattern and need to be updated when
+                      bump is executed.
+  version             default subcommand, can be ommited.
+  revert-to           comming soon...
+
+                To see 'version' subcommand help run
+                      'git bump version -h'
+EOF`
 source "$(git stats --script-location $0)"/../gadgets/git-common
 source "$(git stats --script-location $0)"/../gadgets/git-bump-common
 

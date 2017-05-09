@@ -1,9 +1,17 @@
-#!/usr/bin/env bash
-
 #git script variables
 SUBDIRECTORY_OK="yes"
 USAGE=`cat << EOF
-  Track file.
+[<options>] <file>
+
+    -d| --delete            untrack a file.
+EOF`
+
+LONG_USAGE=`cat << EOF
+Monitore files in git repository that contains the version pattern and need
+to be updated when bump is executed.
+
+If a file is not passed as argument, 'git bump track' will search for files with
+current unique version pattern and prompt for authorization to track.
 EOF`
 
 require_tracked(){
@@ -53,8 +61,9 @@ default(){
   for arg do
     shift
     case "$arg" in
-      -d|--delete) set_flag untrack ;;
-      *) set -- "$@" "$arg"         ;;
+      -d|--delete) set_flag untrack           ;;
+      -h|--help) usage "git bump track"; exit ;;
+      *) set -- "$@" "$arg"                   ;;
     esac
   done
 

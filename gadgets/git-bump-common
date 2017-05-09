@@ -1,5 +1,3 @@
-#!/bin/bash
-
 NOW="$(date +'%B %d, %Y')"
 
 bump_retrieve_current_version(){

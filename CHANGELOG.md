@@ -1,3 +1,10 @@
+## 1.5.0 (Maio 08, 2017)
+  - Git bump help updated.
+  - Include hooks for integration with git flow.
+  - Include MakeFile and installation instructions.
+  - Fix print version test
+  - Merge branch 'release-1.4.0' into develop
+
 ## 1.4.0 (Maio 06, 2017)
   - Added documentation.
   - refactor most of commands and functions.
