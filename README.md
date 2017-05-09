@@ -1,4 +1,4 @@
-#Git Gadgets
+# Git Gadgets
 
 A set of useful git subcommands.
 
